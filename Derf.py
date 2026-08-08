@@ -1,8 +1,8 @@
 """
 Derf PQ+FS — fully post-quantum AND forward-secret two-box messenger.
-Handshake = ML-KEM-768 static (binding) + ML-KEM-768 ephemeral (forward secrecy).
-Ratchet = symmetric HMAC-chain (PQ). Per-letter = LC-AEAD. NO RSA/ECC/X25519.
-NO SERVER. Vault passkey (wrong=closes), change-passkey, single-instance, wipe.
+Handshake = ML-KEM-768 static (bind) + ML-KEM-768 ephemeral (forward secrecy).
+Ratchet = symmetric HMAC-chain (PQ). Per-letter = LC-AEAD. No RSA/ECC/X25519.
+NO SERVER. Data stored next to the executable. PyInstaller-friendly.
 """
 import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket
 import tkinter as tk
@@ -12,6 +12,18 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.exceptions import InvalidTag
+try:
+    import kyber_py.ml_kem  # noqa: F401  (static import so PyInstaller bundles it)
+except Exception:
+    pass
+
+# ---------- data dir = next to the executable (works from USB/any folder) ----------
+def _data_dir():
+    if getattr(sys,'frozen',False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+DATA_DIR=_data_dir()
+def P(n):return os.path.join(DATA_DIR,n)
 
 _LOCK=None
 def _single():
@@ -19,6 +31,11 @@ def _single():
     _LOCK=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     try:_LOCK.bind(("127.0.0.1",59731));return True
     except OSError:return False
+def _fatal(msg):
+    try:
+        r=tk.Tk();r.withdraw();messagebox.showerror("Derf",msg);r.destroy()
+    except Exception:pass
+    sys.exit(1)
 
 # ================= PQ backend (ML-KEM-768) =================
 EK,DK,CT,SS=1184,2400,1088,32
@@ -57,13 +74,14 @@ class _OqsBackend:
         import oqs
         with oqs.KeyEncapsulation(self._m,sk) as k:return k.decaps(ct)
 def _load_pq():
+    errs=[]
     for cls in (_OqsBackend,_KyberPyBackend):
         try:
             b=cls();pk,sk=b.generate_keypair();c,s1=b.encaps(pk);s2=b.decaps(c,sk)
             if s1==s2 and len(s1)==SS:return b
-        except Exception:continue
-    print("FATAL: pip install kyber-py");raise SystemExit(1)
-PQ_KEM=_load_pq()
+        except Exception as e:errs.append(f"{cls.__name__}: {e}")
+    raise RuntimeError("No PQ backend.\n"+"\n".join(errs))
+PQ_KEM=None
 
 # ================= symmetric primitives =================
 APP_AAD=b"derf-pqfs-v1";MAXSKIPPED=1024;MAXN=1<<20
@@ -114,7 +132,7 @@ def secure_shred(fp,passes=7):
         except Exception:pass
 def nuke_all_files():
     for pat in ["lc_*.json","lc_*.txt","lc_*.bin"]:
-        for f in glob.glob(pat):secure_shred(f)
+        for f in glob.glob(P(pat)):secure_shred(f)
 
 def lca_encrypt(m,msg,aad):
     kn,ka,km=keygen(m);a=ChaCha20Poly1305(ka);now=time.time()
@@ -163,13 +181,13 @@ def safety_code(a,b):
     return "-".join(str(int.from_bytes(h[i:i+2],"big")%10000).zfill(4) for i in (0,2,4))
 def contacts_load():
     d={}
-    if os.path.exists("lc_contacts.txt"):
-        for ln in open("lc_contacts.txt",encoding="utf-8"):
+    if os.path.exists(P("lc_contacts.txt")):
+        for ln in open(P("lc_contacts.txt"),encoding="utf-8"):
             n,_,b=ln.strip().partition("\t")
             if n and b:d[n]=base64.urlsafe_b64decode(b+"="*(-len(b)%4))
     return d
 def contact_add(n,b):
-    with open("lc_contacts.txt","a",encoding="utf-8") as f:
+    with open(P("lc_contacts.txt"),"a",encoding="utf-8") as f:
         f.write(f"{n}\t{base64.urlsafe_b64encode(b).decode().rstrip('=')}\n")
 def vsave(p,o):
     n=os.urandom(12);a=ChaCha20Poly1305(hmac_sha256(VAULT,b"vault"))
@@ -219,21 +237,20 @@ class Session:
         ch,ts=lca_decrypt(mk,pay[:h["pl"]],aad);check_fresh(ts[0])
         return h["tot"],h["ci"],h["mid"],ch
     def save(s,p):
-        vsave(f"lc_session_{p}.json",{"sid":b64(s.sid),"role":s.role,"sck":b64(s.sck),"rck":b64(s.rck),
+        vsave(P(f"lc_session_{p}.json"),{"sid":b64(s.sid),"role":s.role,"sck":b64(s.sck),"rck":b64(s.rck),
             "sn":s.sn,"rn":s.rn,"hsend":b64(s.hsend),"hrecv":b64(s.hrecv),
             "sk":{str(k):b64(v) for k,v in s.skipped.items()}})
     @staticmethod
     def load(p):
-        d=vload(f"lc_session_{p}.json")
+        d=vload(P(f"lc_session_{p}.json"))
         return Session(ub64(d["sid"]),None,d["role"],ub64(d["sck"]),ub64(d["rck"]),
             d["sn"],d["rn"],ub64(d["hsend"]),ub64(d["hrecv"]),
             {int(k):ub64(v) for k,v in d["sk"].items()})
 
-# ===== PQ + Forward-Secrecy handshake (static bind + ephemeral FS) =====
 def hs_req(idn,pb):
     me=idn["pq_pk"]
-    eA_sk,eA_pk=PQ_KEM.generate_keypair()          # ephemeral, erased after use
-    ctb,ssb=PQ_KEM.encaps(pb)                       # bind to B static
+    eA_sk,eA_pk=PQ_KEM.generate_keypair()
+    ctb,ssb=PQ_KEM.encaps(pb)
     pay=tlv(b"LCREQ",me,eA_pk,ctb,now8(),os.urandom(16))
     k1=hkdf(ssb+pair_h(me,pb),b"m",b"k1")
     blob=pay+hmac_sha256(k1,pay)
@@ -247,7 +264,7 @@ def hs_rsp(idn,rb):
     ssb=PQ_KEM.decaps(ctb,idn["pq_sk"])
     k1=hkdf(ssb+pair_h(meA,meB),b"m",b"k1")
     if not hmac.compare_digest(mac,hmac_sha256(k1,pay)):raise ValueError("auth")
-    ctf,ssf=PQ_KEM.encaps(eA_pk)                    # FS term (only eA_sk recovers it)
+    ctf,ssf=PQ_KEM.encaps(eA_pk)
     rsp=tlv(b"LCRSP",hashlib.sha256(rb).digest(),ctf,now8(),os.urandom(16))
     k2=hkdf(ssf+pair_h(meA,meB),b"m",b"k2")
     sid=hashlib.sha256(rb+rsp).digest()
@@ -263,7 +280,7 @@ def hs_complete(idn,pend,rsb):
     meA=idn["pq_pk"];pb=ub64(pend["peer"])
     eA_sk=ub64(pend["eA_sk"])
     ssf=PQ_KEM.decaps(ctf,eA_sk)
-    eA_sk=None                                       # erase ephemeral -> forward secrecy
+    eA_sk=None
     ssb=ub64(pend["ssb"])
     k2=hkdf(ssf+pair_h(meA,pb),b"m",b"k2")
     if not hmac.compare_digest(mac,hmac_sha256(k2,pay)):raise ValueError("auth")
@@ -281,14 +298,12 @@ def feed(s,pkt,mf,pf,buf):
 HELP="""DERF PQ+FS — post-quantum AND forward-secret two-box tool
 
 All asymmetric crypto is ML-KEM-768 (NIST L3). The handshake adds an
-EPHEMERAL ML-KEM keypair so old sessions stay secret even if your long-term
-key is stolen later (forward secrecy). Ratchet + MACs use SHA-256/HMAC/
-ChaCha20 (quantum-safe). No RSA/ECC/X25519 anywhere.
+EPHEMERAL ML-KEM keypair for forward secrecy. Ratchet + MACs use
+SHA-256/HMAC/ChaCha20 (quantum-safe). No RSA/ECC/X25519.
 
-SECURITY
- - Wrong vault passkey => app closes.
- - One instance at a time. Change passkey re-encrypts everything.
- - NUKE shreds all keys/contacts/sessions (7-pass).
+Data files are stored NEXT TO the executable (portable / USB friendly).
+Wrong vault passkey => app closes. One instance at a time.
+Change passkey re-encrypts everything. NUKE shreds all data (7-pass).
 
 ENCRYPT: pick person, type, ENCRYPT -> copied. DECRYPT: paste -> DECRYPT.
 PAIRING (once): exchange keys; invite -> reply -> finish. Compare safety code.
@@ -320,17 +335,17 @@ class App:
         if not self._pw:self.root.destroy();sys.exit(0)
         VAULT=derive_vault(self._pw)
     def check_vault(self):
-        if not os.path.exists("lc_identity.json"):return True
-        try:vload("lc_identity.json");return True
+        if not os.path.exists(P("lc_identity.json")):return True
+        try:vload(P("lc_identity.json"));return True
         except Exception:return False
     def ensure_identity(self):
-        if os.path.exists("lc_identity.json"):
+        if os.path.exists(P("lc_identity.json")):
             try:
-                d=vload("lc_identity.json");self.idn={"pq_sk":ub64(d["pq_sk"]),"pq_pk":ub64(d["pq_pk"])};return
+                d=vload(P("lc_identity.json"));self.idn={"pq_sk":ub64(d["pq_sk"]),"pq_pk":ub64(d["pq_pk"])};return
             except Exception as e:
                 messagebox.showerror("Fatal",f"Identity corrupted: {e}");self.root.destroy();sys.exit(1)
         self.idn=make_identity()
-        vsave("lc_identity.json",{"pq_sk":b64(self.idn["pq_sk"]),"pq_pk":b64(self.idn["pq_pk"])})
+        vsave(P("lc_identity.json"),{"pq_sk":b64(self.idn["pq_sk"]),"pq_pk":b64(self.idn["pq_pk"])})
     def my_pub(self):return "LCAP1-"+base64.urlsafe_b64encode(id_bundle(self.idn)).decode().rstrip("=")
     def clip_set(self,s):self.root.clipboard_clear();self.root.clipboard_append(s)
     def clip_get(self):
@@ -352,7 +367,7 @@ class App:
         self.root.wait_window(d)
     def _rekey(self,newpw):
         global VAULT
-        files=["lc_identity.json"]+glob.glob("lc_session_*.json")+glob.glob("lc_pending_*.json")
+        files=[P("lc_identity.json")]+glob.glob(P("lc_session_*.json"))+glob.glob(P("lc_pending_*.json"))
         data={}
         for f in files:
             try:data[f]=vload(f)
@@ -386,7 +401,7 @@ class App:
         sb=ttk.Frame(self.root);sb.pack(fill="x",padx=8,pady=4)
         self.statvar=tk.StringVar();ttk.Label(sb,textvariable=self.statvar,foreground="#555").pack(side="left")
         self.refresh_people()
-    def paired(self):return [n for n in contacts_load() if os.path.exists(f"lc_session_{n}.json")]
+    def paired(self):return [n for n in contacts_load() if os.path.exists(P(f"lc_session_{n}.json"))]
     def refresh_people(self):self.enc_to["values"]=self.paired()
     def do_encrypt(self):
         n=self.enc_to.get()
@@ -448,7 +463,7 @@ class App:
     def refresh_list(self):
         self.people_list.delete("1.0",tk.END)
         for n,b in contacts_load().items():
-            st="paired" if os.path.exists(f"lc_session_{n}.json") else "not paired"
+            st="paired" if os.path.exists(P(f"lc_session_{n}.json")) else "not paired"
             self.people_list.insert(tk.END,f"{n:14s} [{st}]  safety={safety_code(id_bundle(self.idn),b)}\n")
     def add_person(self):
         n=self.p_name.get().strip();raw=self.p_key.get("1.0",tk.END).strip()
@@ -468,7 +483,7 @@ class App:
         for w in self.pair_frame.winfo_children():w.destroy()
         b=self.pair_frame
         if self.var.get()==0:
-            req,pend=hs_req(self.idn,bundle);vsave(f"lc_pending_{name}.json",pend)
+            req,pend=hs_req(self.idn,bundle);vsave(P(f"lc_pending_{name}.json"),pend)
             self.inv=b64(req)
             ttk.Label(b,text="A) SEND this invite:",font=("",11,"bold")).pack()
             t=tk.Text(b,height=4,wrap="word");t.pack(fill="x",padx=8);t.insert(tk.END,self.inv)
@@ -487,8 +502,8 @@ class App:
             ttk.Button(b,text="Copy reply & finish ✓",command=self.finish_b).pack(pady=4)
     def finish_a(self,name):
         try:
-            hs_complete(self.idn,vload(f"lc_pending_{name}.json"),ub64(clean_b64(self.re.get("1.0",tk.END)))).save(name)
-            os.remove(f"lc_pending_{name}.json")
+            hs_complete(self.idn,vload(P(f"lc_pending_{name}.json")),ub64(clean_b64(self.re.get("1.0",tk.END)))).save(name)
+            os.remove(P(f"lc_pending_{name}.json"))
         except Exception as e:return messagebox.showerror("Pair",f"{e}")
         self.done_pair()
     def make_reply(self,name):
@@ -510,9 +525,18 @@ class App:
 
 def main():
     if not _single():
-        r=tk.Tk();r.withdraw()
-        messagebox.showerror("Derf","Another instance is already running. Only one at a time.")
-        r.destroy();return
-    root=tk.Tk();App(root);root.mainloop()
+        _fatal("Another instance of Derf is already running. Only one at a time.")
+    global PQ_KEM
+    try:
+        PQ_KEM=_load_pq()
+    except Exception as e:
+        _fatal("Post-quantum backend failed to load.\n\n"+str(e)+
+               "\n\nIf this is a packaged EXE, rebuild with:\npyinstaller --onefile --noconsole --collect-all kyber_py --name Derf derf.py")
+    try:
+        root=tk.Tk();App(root);root.mainloop()
+    except Exception:
+        import traceback
+        _fatal("Startup error:\n\n"+traceback.format_exc())
+
 if __name__=="__main__":
     main()
