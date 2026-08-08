@@ -1,7 +1,8 @@
 """
-Derf PQ — FULLY post-quantum two-box encrypted messenger.
-Identity + handshake = ML-KEM-768 only. Ratchet = symmetric HMAC-chain. Per-letter = LC-AEAD.
-NO SERVER. Forensic wipe. Change-passkey. Single-instance. Wrong passkey closes.
+Derf PQ+FS — fully post-quantum AND forward-secret two-box messenger.
+Handshake = ML-KEM-768 static (binding) + ML-KEM-768 ephemeral (forward secrecy).
+Ratchet = symmetric HMAC-chain (PQ). Per-letter = LC-AEAD. NO RSA/ECC/X25519.
+NO SERVER. Vault passkey (wrong=closes), change-passkey, single-instance, wipe.
 """
 import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket
 import tkinter as tk
@@ -12,15 +13,12 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.exceptions import InvalidTag
 
-# ================= single-instance lock =================
 _LOCK=None
 def _single():
     global _LOCK
     _LOCK=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    try:
-        _LOCK.bind(("127.0.0.1",59731));return True
-    except OSError:
-        return False
+    try:_LOCK.bind(("127.0.0.1",59731));return True
+    except OSError:return False
 
 # ================= PQ backend (ML-KEM-768) =================
 EK,DK,CT,SS=1184,2400,1088,32
@@ -68,7 +66,7 @@ def _load_pq():
 PQ_KEM=_load_pq()
 
 # ================= symmetric primitives =================
-APP_AAD=b"derf-pq-v1";MAXSKIPPED=1024;MAXN=1<<20
+APP_AAD=b"derf-pqfs-v1";MAXSKIPPED=1024;MAXN=1<<20
 FRESH=420.0;SKEW=60.0;CHUNK=128;HJ=256;VAULT=b""
 def derive_vault(pw):
     return PBKDF2HMAC(algorithm=hashes.SHA256(),length=32,salt=b"derf-vault",iterations=600_000).derive(pw.encode())
@@ -102,7 +100,6 @@ def parse_pubkey(t):
         if s.startswith(p):s=s[len(p):];break
     s+="="*(-len(s)%4);return base64.b64decode(s,validate=True)
 
-# ================= forensic wipe =================
 def secure_shred(fp,passes=7):
     if not os.path.isfile(fp):return
     try:
@@ -119,7 +116,6 @@ def nuke_all_files():
     for pat in ["lc_*.json","lc_*.txt","lc_*.bin"]:
         for f in glob.glob(pat):secure_shred(f)
 
-# ================= LC-AEAD =================
 def lca_encrypt(m,msg,aad):
     kn,ka,km=keygen(m);a=ChaCha20Poly1305(ka);now=time.time()
     ts=[struct.pack(">Q",int((now+i*1e-6)*1e9)) for i in range(len(msg))]
@@ -157,7 +153,6 @@ def aad_len():return len(APP_AAD)+32+HJ+64
 def lca_size(n):return 4+2+aad_len()+8+8*n+32+n*31
 PAYLOAD_MAX=lca_size(CHUNK);PACKET=12+HJ+16+PAYLOAD_MAX
 
-# ================= identity =================
 def make_identity():
     pq_pk,pq_sk=PQ_KEM.generate_keypair();return {"pq_sk":pq_sk,"pq_pk":pq_pk}
 def id_bundle(i):return i["pq_pk"]
@@ -183,7 +178,6 @@ def vload(p):
     r=ub64(open(p).read().strip());a=ChaCha20Poly1305(hmac_sha256(VAULT,b"vault"))
     return json.loads(a.decrypt(r[:12],r[12:],None))
 
-# ================= symmetric PQ ratchet =================
 class Session:
     def __init__(s,sid,root,role,sck=None,rck=None,sn=0,rn=0,hsend=None,hrecv=None,skipped=None):
         s.sid=sid;s.role=role
@@ -235,42 +229,46 @@ class Session:
             d["sn"],d["rn"],ub64(d["hsend"]),ub64(d["hrecv"]),
             {int(k):ub64(v) for k,v in d["sk"].items()})
 
-# ================= fully-PQ handshake =================
+# ===== PQ + Forward-Secrecy handshake (static bind + ephemeral FS) =====
 def hs_req(idn,pb):
-    me=idn["pq_pk"];cta,ssa=PQ_KEM.encaps(pb)
-    pay=tlv(b"LCREQ",me,cta,now8(),os.urandom(16))
-    k1=hkdf(ssa+pair_h(me,pb),b"m",b"k1")
+    me=idn["pq_pk"]
+    eA_sk,eA_pk=PQ_KEM.generate_keypair()          # ephemeral, erased after use
+    ctb,ssb=PQ_KEM.encaps(pb)                       # bind to B static
+    pay=tlv(b"LCREQ",me,eA_pk,ctb,now8(),os.urandom(16))
+    k1=hkdf(ssb+pair_h(me,pb),b"m",b"k1")
     blob=pay+hmac_sha256(k1,pay)
-    return blob,{"ssa":b64(ssa),"reqblob":b64(blob),"peer":b64(pb)}
+    return blob,{"eA_sk":b64(eA_sk),"ssb":b64(ssb),"reqblob":b64(blob),"peer":b64(pb)}
 def hs_rsp(idn,rb):
     pay,mac=rb[:-32],rb[-32:]
-    f,_=untlv(pay,5);tag,meA,cta,ts,_=f
+    f,_=untlv(pay,6);tag,meA,eA_pk,ctb,ts,_=f
     if tag!=b"LCREQ":raise ValueError("not an invite")
     check_fresh(ts)
     meB=idn["pq_pk"]
-    ssa=PQ_KEM.decaps(cta,idn["pq_sk"])
-    k1=hkdf(ssa+pair_h(meA,meB),b"m",b"k1")
+    ssb=PQ_KEM.decaps(ctb,idn["pq_sk"])
+    k1=hkdf(ssb+pair_h(meA,meB),b"m",b"k1")
     if not hmac.compare_digest(mac,hmac_sha256(k1,pay)):raise ValueError("auth")
-    ctb,ssb=PQ_KEM.encaps(meA)
-    rsp=tlv(b"LCRSP",hashlib.sha256(rb).digest(),ctb,now8(),os.urandom(16))
-    k2=hkdf(ssb+pair_h(meA,meB),b"m",b"k2")
+    ctf,ssf=PQ_KEM.encaps(eA_pk)                    # FS term (only eA_sk recovers it)
+    rsp=tlv(b"LCRSP",hashlib.sha256(rb).digest(),ctf,now8(),os.urandom(16))
+    k2=hkdf(ssf+pair_h(meA,meB),b"m",b"k2")
     sid=hashlib.sha256(rb+rsp).digest()
-    root=hkdf(ssa+ssb+pair_h(meA,meB),sid,b"root")
+    root=hkdf(ssb+ssf+pair_h(meA,meB),sid,b"root")
     return rsp+hmac_sha256(k2,rsp),Session(sid,root,"resp")
 def hs_complete(idn,pend,rsb):
     pay,mac=rsb[:-32],rsb[-32:]
-    f,_=untlv(pay,5);tag,rh,ctb,ts,_=f
+    f,_=untlv(pay,5);tag,rh,ctf,ts,_=f
     if tag!=b"LCRSP":raise ValueError("not a reply")
     check_fresh(ts)
     reqb=ub64(pend["reqblob"])
     if rh!=hashlib.sha256(reqb).digest():raise ValueError("mismatch")
     meA=idn["pq_pk"];pb=ub64(pend["peer"])
-    ssb=PQ_KEM.decaps(ctb,idn["pq_sk"])
-    ssa=ub64(pend["ssa"])
-    k2=hkdf(ssb+pair_h(meA,pb),b"m",b"k2")
+    eA_sk=ub64(pend["eA_sk"])
+    ssf=PQ_KEM.decaps(ctf,eA_sk)
+    eA_sk=None                                       # erase ephemeral -> forward secrecy
+    ssb=ub64(pend["ssb"])
+    k2=hkdf(ssf+pair_h(meA,pb),b"m",b"k2")
     if not hmac.compare_digest(mac,hmac_sha256(k2,pay)):raise ValueError("auth")
     sid=hashlib.sha256(reqb+pay).digest()
-    root=hkdf(ssa+ssb+pair_h(meA,pb),sid,b"root")
+    root=hkdf(ssb+ssf+pair_h(meA,pb),sid,b"root")
     return Session(sid,root,"init")
 def feed(s,pkt,mf,pf,buf):
     tot,ci,mid,ch=s.try_decrypt(pkt,mf,pf)
@@ -280,26 +278,26 @@ def feed(s,pkt,mf,pf,buf):
         pd=b"".join(b["parts"][i] for i in range(need))[:tot];del buf[mid];return unpad(pd)
     return None
 
-HELP="""DERF PQ — FULLY POST-QUANTUM two-box tool
+HELP="""DERF PQ+FS — post-quantum AND forward-secret two-box tool
 
-All asymmetric crypto is ML-KEM-768. No RSA/ECC/X25519. Ratchet + MACs use
-SHA-256/HMAC/ChaCha20 (quantum-safe). A quantum computer recording your
-traffic can NEVER decrypt it later.
+All asymmetric crypto is ML-KEM-768 (NIST L3). The handshake adds an
+EPHEMERAL ML-KEM keypair so old sessions stay secret even if your long-term
+key is stolen later (forward secrecy). Ratchet + MACs use SHA-256/HMAC/
+ChaCha20 (quantum-safe). No RSA/ECC/X25519 anywhere.
 
-SECURITY FEATURES
- - Wrong vault passkey => app closes immediately (protects your keys).
- - Only ONE instance can run at a time.
- - Change passkey re-encrypts identity + all sessions with the new key.
- - NUKE shreds every key/contact/session file (7-pass overwrite).
+SECURITY
+ - Wrong vault passkey => app closes.
+ - One instance at a time. Change passkey re-encrypts everything.
+ - NUKE shreds all keys/contacts/sessions (7-pass).
 
 ENCRYPT: pick person, type, ENCRYPT -> copied. DECRYPT: paste -> DECRYPT.
-PAIRING (once): exchange keys; invite -> reply -> finish. Then boxes work.
-RULES: open within 7 min; compare safety code once.
+PAIRING (once): exchange keys; invite -> reply -> finish. Compare safety code.
+RULES: open within 7 min.
 """
 
 class App:
     def __init__(self,root):
-        self.root=root;root.title(f"Derf PQ — {PQ_KEM.name}");root.geometry("960x780")
+        self.root=root;root.title(f"Derf PQ+FS — {PQ_KEM.name}");root.geometry("960x780")
         try:ttk.Style().theme_use("clam")
         except Exception:pass
         self.buffers={}
@@ -316,19 +314,15 @@ class App:
         ttk.Label(d,text="Vault passphrase:").pack(pady=6)
         e=ttk.Entry(d,show="*");e.pack(fill="x",padx=20);e.focus()
         def go():
-            self._pw=e.get()
-            d.destroy()
+            self._pw=e.get();d.destroy()
         ttk.Button(d,text="Unlock",command=go).pack(pady=6);e.bind("<Return>",lambda ev:go())
         self.root.wait_window(d)
-        if not self._pw:
-            self.root.destroy();sys.exit(0)
+        if not self._pw:self.root.destroy();sys.exit(0)
         VAULT=derive_vault(self._pw)
     def check_vault(self):
         if not os.path.exists("lc_identity.json"):return True
-        try:
-            vload("lc_identity.json");return True
-        except Exception:
-            return False
+        try:vload("lc_identity.json");return True
+        except Exception:return False
     def ensure_identity(self):
         if os.path.exists("lc_identity.json"):
             try:
@@ -343,17 +337,16 @@ class App:
         try:return self.root.clipboard_get()
         except Exception:return ""
     def status(self,m):self.statvar.set(m)
-
     def change_passkey(self):
         d=tk.Toplevel(self.root);d.title("Change passkey");d.geometry("400x190");d.transient(self.root);d.grab_set()
         ttk.Label(d,text="New passphrase:").pack(pady=2)
         e1=ttk.Entry(d,show="*");e1.pack(fill="x",padx=20)
-        ttk.Label(d,text="Confirm new passphrase:").pack(pady=2)
+        ttk.Label(d,text="Confirm:").pack(pady=2)
         e2=ttk.Entry(d,show="*");e2.pack(fill="x",padx=20)
         def go():
             a,b=e1.get(),e2.get()
             if not a:return messagebox.showerror("Change","Empty.")
-            if a!=b:return messagebox.showerror("Change","Passphrases don't match.")
+            if a!=b:return messagebox.showerror("Change","Don't match.")
             self._rekey(a);d.destroy()
         ttk.Button(d,text="Change",command=go).pack(pady=8)
         self.root.wait_window(d)
@@ -367,8 +360,7 @@ class App:
         VAULT=derive_vault(newpw)
         for f,dta in data.items():vsave(f,dta)
         self.status("Passkey changed.")
-        messagebox.showinfo("Changed","Vault passkey changed. Use it next time you open Derf.")
-
+        messagebox.showinfo("Changed","Passkey changed.")
     def build(self):
         nb=ttk.Notebook(self.root);nb.pack(fill="both",expand=True,padx=8,pady=8)
         self.build_main(nb);self.build_people(nb);self.build_help(nb)
@@ -450,7 +442,7 @@ class App:
         self.refresh_list()
     def nuke_everything(self):
         if not messagebox.askyesno("NUKE","Destroy ALL keys/contacts/sessions? Cannot be undone."):return
-        if not messagebox.askyesno("CONFIRM","Final warning: keys lost forever. Proceed?"):return
+        if not messagebox.askyesno("CONFIRM","Final warning. Proceed?"):return
         nuke_all_files();self.clip_set("");self.idn=None;self.buffers={}
         messagebox.showinfo("Nuked","All data destroyed. Closing.");self.root.destroy()
     def refresh_list(self):
@@ -519,7 +511,7 @@ class App:
 def main():
     if not _single():
         r=tk.Tk();r.withdraw()
-        messagebox.showerror("Derf","Another instance of Derf is already running. Only one at a time.")
+        messagebox.showerror("Derf","Another instance is already running. Only one at a time.")
         r.destroy();return
     root=tk.Tk();App(root);root.mainloop()
 if __name__=="__main__":
