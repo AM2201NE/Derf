@@ -1,11 +1,9 @@
 """
-LC-AEAD FINAL APP — complete interactive console application.
-Stack (outer→inner): uniform fixed-size packets w/ encrypted headers (metadata
-hardening) → Double Ratchet w/ deniable header MACs + MAC-key revelation →
-deniable PQ handshake (X25519 + ML-KEM-768, no signatures) → LC-AEAD per-letter
-chained AEAD (the md-file construction, unchanged) → 7-min freshness.
-Features: identities, contacts+safety codes, sessions, send/recv via
-print/file/dead-drop folder, encrypted state vault, wipe, uniform errors.
+Derf — deniable, post-quantum-hybrid, per-letter-chained encrypted messenger.
+PQ (ML-KEM-768) is MANDATORY: backend auto-detected = liboqs (native) or kyber-py (pure python).
+Stack: uniform fixed-size packets w/ encrypted headers -> Double Ratchet w/ deniable
+header MACs + MAC-key revelation -> deniable X3DH-style PQ handshake (X25519+ML-KEM-768)
+-> LC-AEAD per-letter chained AEAD -> 7-min freshness.
 """
 import os, sys, json, glob, hmac, hashlib, time, struct, base64, getpass, binascii
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -15,18 +13,40 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, Raw
 from cryptography.exceptions import InvalidTag
-try:
-    import liboqs; PQ_KEM = liboqs.KEM("ML-KEM-768"); PQ = True
-except Exception:
-    PQ_KEM = None; PQ = False
 
-APP_AAD = b"lc-aead-v9"; MAXSKIPPED = 1024; MAXN = 1 << 20
+# ---------------- MANDATORY post-quantum backend (ML-KEM-768) ----------------
+class _LiboqsBackend:
+    name = "liboqs (native ML-KEM-768)"
+    def __init__(self):
+        import liboqs
+        self._k = liboqs.KEM("ML-KEM-768")
+    def generate_keypair(self): return self._k.generate_keypair()
+    def encaps(self, pk): return self._k.encaps(pk)
+    def decaps(self, ct, sk): return self._k.decaps(ct, sk)
+
+class _KyberPyBackend:
+    name = "kyber-py (pure-python ML-KEM-768)"
+    def __init__(self):
+        from kyber_py.ml_kem import ML_KEM768
+        self._k = ML_KEM768
+    def generate_keypair(self): return self._k.generate_keypair()
+    def encaps(self, pk): return self._k.encaps(pk)
+    def decaps(self, ct, sk): return self._k.decaps(ct, sk)
+
+def _load_pq():
+    for cls in (_LiboqsBackend, _KyberPyBackend):
+        try: return cls()
+        except Exception: continue
+    print("FATAL: no post-quantum backend found. Derf requires ML-KEM-768.")
+    print("Install one of:\n  pip install liboqs-python\n  pip install kyber-py")
+    raise SystemExit(1)
+PQ_KEM = _load_pq()
+
+APP_AAD = b"derf-v1"; MAXSKIPPED = 1024; MAXN = 1 << 20
 FRESH = 420.0; SKEW = 60.0; CHUNK = 128; HJ = 256
 DROP = "lc_drop"; VAULT = b""
 if "--fresh-sec" in sys.argv: FRESH = float(sys.argv[sys.argv.index("--fresh-sec")+1])
-CLASSICAL_OK = "--classical-ok" in sys.argv
 
-# ---------------- primitives ----------------
 def hmac_sha256(k, d): return hmac.new(k, d, hashlib.sha256).digest()
 def hkdf(ikm, salt, info, n=32):
     return HKDF(algorithm=hashes.SHA256(), length=n, salt=salt, info=info).derive(ikm)
@@ -40,7 +60,7 @@ def kdf3(rk, o):
 def x_new():
     p = x25519.X25519PrivateKey.generate()
     return (p.private_bytes(Encoding, Raw, NoEncryption()), p.public_key().public_bytes(Encoding, Raw))
-def x_pub_of(priv_b): return x25519.X25519PrivateKey.from_private_bytes(priv_b).public_key().public_bytes(Encoding, Raw)
+def x_pub_of(b): return x25519.X25519PrivateKey.from_private_bytes(b).public_key().public_bytes(Encoding, Raw)
 def dh(pr, pu): return x25519.X25519PrivateKey.from_private_bytes(pr).exchange(x25519.X25519PublicKey.from_public_bytes(pu))
 def tlv(*it): return b"".join(struct.pack(">H", len(i)) + i for i in it)
 def untlv(b, k):
@@ -63,7 +83,7 @@ def unpad(p):
 def clean_b64(raw):
     return "".join(l.strip() for l in raw.splitlines() if l.strip() and not l.strip().startswith("-----")).replace("-", "+").replace("_", "/")
 
-# ---------------- LC-AEAD core (md-file construction, unchanged) ----------------
+# ---------------- LC-AEAD core (per-letter chained AEAD) ----------------
 def lca_encrypt(master, message, aad):
     kn, ka, km = keygen(master); aead = ChaCha20Poly1305(ka); now = time.time()
     ts = [struct.pack(">Q", int((now+i*1e-6)*1e9)) for i in range(len(message))]
@@ -100,7 +120,6 @@ def lca_decrypt(master, pkg, expect_aad):
         out += aead.decrypt(n_i, blob[12:], aad); prev = blob
     return bytes(out), ts
 
-# ---------------- uniform packet geometry ----------------
 def aad_len(): return len(APP_AAD)+32+HJ+64
 def lca_size(n): return 4+2+aad_len()+8+8*n+32+n*31
 PAYLOAD_MAX = lca_size(CHUNK); PACKET = 12+HJ+16+PAYLOAD_MAX
@@ -108,7 +127,7 @@ PAYLOAD_MAX = lca_size(CHUNK); PACKET = 12+HJ+16+PAYLOAD_MAX
 # ---------------- identities / contacts / vault ----------------
 def make_identity():
     x, _ = x_new()
-    pq_pk, pq_sk = (PQ_KEM.generate_keypair() if PQ else (b"", b""))
+    pq_pk, pq_sk = PQ_KEM.generate_keypair()
     return {"x": x, "pq_sk": pq_sk, "pq_pk": pq_pk}
 def id_bundle(i): return tlv(x_pub_of(i["x"]), i["pq_pk"])
 def id_fp(b): return hashlib.sha256(b).digest()
@@ -191,9 +210,10 @@ class Session:
         cands = []
         if self.hkr: cands.append(("cur", hmac_sha256(self.hkr, b"hcur")))
         cands.append(("step", hmac_sha256(self.rk, b"hstep")))
-        hj = None
-        for mode, ek in cands:
-            try: hj = ChaCha20Poly1305(ek).decrypt(nonce, ct, b""); break
+        hj = mode = None
+        for m, ek in cands:
+            try:
+                hj = ChaCha20Poly1305(ek).decrypt(nonce, ct, b""); mode = m; break
             except InvalidTag: continue
         if hj is None: raise ValueError("not-for-session")
         hdr = json.loads(hj.rstrip())
@@ -235,7 +255,7 @@ class Session:
 # ---------------- deniable PQ handshake ----------------
 def hs_req(idn, peer_bundle):
     me = id_bundle(idn); a_e, a_e_pub = x_new()
-    ct_a, ss_a = (PQ_KEM.encaps(untlv(peer_bundle, 2)[0][1]) if PQ else (b"", b""))
+    ct_a, ss_a = PQ_KEM.encaps(untlv(peer_bundle, 2)[0][1])
     payload = tlv(b"LCREQ", me, a_e_pub, ct_a, now8(), os.urandom(16))
     k1 = hkdf(dh(a_e, untlv(peer_bundle, 2)[0][0])+dh(idn["x"], untlv(peer_bundle, 2)[0][0])+ss_a+pair_h(me, peer_bundle), b"m", b"k1")
     blob = payload+hmac_sha256(k1, payload)
@@ -244,12 +264,12 @@ def hs_rsp(idn, req_blob):
     payload, mac = req_blob[:-32], req_blob[-32:]
     _, bundleA, a_e_pub, ct_a, ts, _ = untlv(payload, 6); check_fresh(ts)
     xa_pub, a_pq = untlv(bundleA, 2)
-    ss_a = PQ_KEM.decaps(ct_a, idn["pq_sk"]) if PQ else b""
+    ss_a = PQ_KEM.decaps(ct_a, idn["pq_sk"])
     me = id_bundle(idn)
     k1 = hkdf(dh(idn["x"], a_e_pub)+dh(idn["x"], xa_pub)+ss_a+pair_h(bundleA, me), b"m", b"k1")
     if not hmac.compare_digest(mac, hmac_sha256(k1, payload)): raise ValueError("auth")
     b_e, b_e_pub = x_new(); rb, rb_pub = x_new()
-    ct_b, ss_b = (PQ_KEM.encaps(a_pq) if PQ else (b"", b""))
+    ct_b, ss_b = PQ_KEM.encaps(a_pq)
     rsp = tlv(b"LCRSP", hashlib.sha256(req_blob).digest(), b_e_pub, rb_pub, ct_b, now8(), os.urandom(16))
     k2 = hkdf(dh(b_e, xa_pub)+dh(idn["x"], xa_pub)+ss_b+pair_h(bundleA, me), b"m", b"k2")
     sid = hashlib.sha256(req_blob+rsp).digest()
@@ -263,7 +283,7 @@ def hs_complete(idn, pend, rsp_blob):
     me = id_bundle(idn)
     fr, _ = untlv(reqblob[:-32], 6); bundleA, a_e_pub = fr[1], fr[2]
     xa_pub, _ = untlv(bundleA, 2)
-    ss_b = PQ_KEM.decaps(ct_b, idn["pq_sk"]) if PQ else b""
+    ss_b = PQ_KEM.decaps(ct_b, idn["pq_sk"])
     k2 = hkdf(dh(ub64(pend["a_e"]), b_e_pub)+dh(idn["x"], xa_pub)+ss_b+pair_h(me, bundleA), b"m", b"k2")
     if not hmac.compare_digest(mac, hmac_sha256(k2, payload)): raise ValueError("auth")
     sid = hashlib.sha256(reqblob+payload).digest()
@@ -274,7 +294,6 @@ def hs_complete(idn, pend, rsp_blob):
     return Session(sid, rk, ra, x_pub_of(ra), dhrr=rb_pub, cks=cks, hks=hks,
                    role="init", stepped=True, prev_rk=root)
 
-# ---------------- reassembly ----------------
 def feed(sess, packet, me_fp, peer_fp, buff):
     tot, ci, mid, ch = sess.try_decrypt(packet, me_fp, peer_fp)
     b = buff.setdefault(mid, {"tot": tot, "parts": {}})
@@ -286,7 +305,6 @@ def feed(sess, packet, me_fp, peer_fp, buff):
         return unpad(padded)
     return None
 
-# ---------------- selftest ----------------
 def selftest():
     global VAULT; VAULT = hashlib.sha256(b"t").digest()
     A, B = make_identity(), make_identity()
@@ -294,21 +312,19 @@ def selftest():
     req, pend = hs_req(A, bb)
     rsp, sB = hs_rsp(B, req)
     sA = hs_complete(A, pend, rsp)
-    buf = {}
+    buf, out = {}, None
     for p in sA.encrypt(b"hello untraceable world "*5, fa, fb):
         assert len(p) == PACKET and bb not in p and ba not in p
         out = feed(sB, p, fb, fa, buf)
     assert out and out.startswith(b"hello")
-    pk = sA.encrypt(b"two", fa, fb)
-    assert feed(sB, pk[0], fb, fa, buf) == b"two"
-    r = sB.encrypt(b"reply", fb, fa)
-    assert feed(sA, r[0], fa, fb, {}) == b"reply"
+    pk = sA.encrypt(b"two", fa, fb); assert feed(sB, pk[0], fb, fa, buf) == b"two"
+    r = sB.encrypt(b"reply", fb, fa); assert feed(sA, r[0], fa, fb, {}) == b"reply"
     for bad in (lambda: feed(sB, pk[0], fb, fa, {}),
                 lambda: feed(sB, pk[0][:-1]+bytes([pk[0][-1]^1]), fb, fa, {}),
                 lambda: feed(sB, os.urandom(PACKET), fb, fa, {})):
         try: bad(); raise SystemExit("FAIL")
         except (ValueError, InvalidTag): pass
-    print(f"selftest OK | PQ {'ON' if PQ else 'OFF'} | packet={PACKET}B uniform | deniable | fresh={int(FRESH)}s")
+    print(f"selftest OK | PQ: {PQ_KEM.name} | packet={PACKET}B uniform | deniable | fresh={int(FRESH)}s")
 
 # ---------------- UI ----------------
 def read_multiline(p):
@@ -322,14 +338,12 @@ def read_multiline(p):
 def main():
     global VAULT
     if "--selftest" in sys.argv: selftest(); return
-    if not PQ and not CLASSICAL_OK:
-        print("FATAL: PQ library missing. Install liboqs, or rerun --classical-ok (NOT recommended)."); return
-    if not PQ: print("WARNING: classical mode (harvest-now-decrypt-later possible).")
-    VAULT = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"lc-v9", iterations=600_000)\
+    print(f"Derf | PQ backend: {PQ_KEM.name}")
+    VAULT = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"derf-vault", iterations=600_000)\
         .derive(getpass.getpass("Vault passphrase: ").encode())
     idn = None
     while True:
-        print(f"\n===== LC-AEAD final app ===== [id:{'yes' if idn else 'no'}] [PQ:{'ON' if PQ else 'OFF'}] [fresh:{int(FRESH)}s]")
+        print(f"\n===== Derf ===== [id:{'yes' if idn else 'no'}] [fresh:{int(FRESH)}s]")
         print(" [1] create id  [2] load id  [3] contacts/safety  [4] START session  [5] ANSWER req")
         print(" [6] FINISH session  [7] SEND  [8] RECEIVE  [9] WIPE all  [0] exit")
         c = input("> ").strip()
@@ -404,7 +418,7 @@ def main():
                     if not hit: unmatched += 1
                 for n, s in sessions.items(): s.save(n)
                 print(f"({done} processed, {unmatched} not-for-any-session)")
-        except (ValueError, InvalidTag, binascii.Error, KeyError, OSError) as e:
+        except (ValueError, InvalidTag, binascii.Error, KeyError, OSError):
             print("❌ rejected")
         except KeyboardInterrupt: print("\n(interrupted)")
     print("Bye.")
