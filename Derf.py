@@ -1,5 +1,5 @@
 """
-Derf — deniable, post-quantum-hybrid, per-letter-chained encrypted messenger.
+Derf — deniable, post-quantum, per-letter-chained encrypted messenger.
 PQ (ML-KEM-768) is MANDATORY: backend auto-detected = liboqs (native) or kyber-py (pure python).
 Stack: uniform fixed-size packets w/ encrypted headers -> Double Ratchet w/ deniable
 header MACs + MAC-key revelation -> deniable X3DH-style PQ handshake (X25519+ML-KEM-768)
@@ -11,7 +11,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, Raw
+from cryptography.hazmat.primitives.serialization import (
+    Encoding, NoEncryption, PrivateFormat, PublicFormat)
 from cryptography.exceptions import InvalidTag
 
 # ---------------- MANDATORY post-quantum backend (ML-KEM-768) ----------------
@@ -59,8 +60,10 @@ def kdf3(rk, o):
     x = hkdf(o, rk, b"lc-ratchet3", 96); return x[:32], x[32:64], x[64:]
 def x_new():
     p = x25519.X25519PrivateKey.generate()
-    return (p.private_bytes(Encoding, Raw, NoEncryption()), p.public_key().public_bytes(Encoding, Raw))
-def x_pub_of(b): return x25519.X25519PrivateKey.from_private_bytes(b).public_key().public_bytes(Encoding, Raw)
+    return (p.private_bytes(Encoding, PrivateFormat.Raw, NoEncryption()),
+            p.public_key().public_bytes(Encoding, PublicFormat.Raw))
+def x_pub_of(b):
+    return x25519.X25519PrivateKey.from_private_bytes(b).public_key().public_bytes(Encoding, PublicFormat.Raw)
 def dh(pr, pu): return x25519.X25519PrivateKey.from_private_bytes(pr).exchange(x25519.X25519PublicKey.from_public_bytes(pu))
 def tlv(*it): return b"".join(struct.pack(">H", len(i)) + i for i in it)
 def untlv(b, k):
