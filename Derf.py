@@ -1,10 +1,8 @@
 """
-Derf PQ+FS — fully post-quantum AND forward-secret two-box messenger.
-Handshake = ML-KEM-768 static (bind) + ML-KEM-768 ephemeral (forward secrecy).
-Ratchet = symmetric HMAC-chain (PQ). Per-letter = LC-AEAD. No RSA/ECC/X25519.
-NO SERVER. Data stored next to the executable. PyInstaller-friendly.
+Derf PQ+FS — post-quantum + forward-secret two-box messenger.
+Data stored in a "Derf" folder on the Desktop (auto-created + migrated).
 """
-import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket
+import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket, shutil
 import tkinter as tk
 from tkinter import ttk, messagebox
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -13,15 +11,34 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.exceptions import InvalidTag
 try:
-    import kyber_py.ml_kem  # noqa: F401  (static import so PyInstaller bundles it)
+    import kyber_py.ml_kem  # noqa: F401 (static import so PyInstaller bundles it)
 except Exception:
     pass
 
-# ---------- data dir = next to the executable (works from USB/any folder) ----------
-def _data_dir():
-    if getattr(sys,'frozen',False):
-        return os.path.dirname(sys.executable)
+APP_NAME="Derf"
+def _old_dir():
+    if getattr(sys,'frozen',False):return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
+def _migrate(old,new):
+    if os.path.abspath(old)==os.path.abspath(new):return
+    for f in glob.glob(os.path.join(old,"lc_*")):
+        dst=os.path.join(new,os.path.basename(f))
+        if not os.path.exists(dst):
+            try:shutil.copy2(f,dst)
+            except Exception:pass
+def _data_dir():
+    old=_old_dir()
+    try:
+        home=os.path.expanduser("~")
+        desk=os.path.join(home,"Desktop")
+        if not os.path.isdir(desk):desk=os.path.join(home,"desktop")
+        d=os.path.join(desk,APP_NAME)
+        os.makedirs(d,exist_ok=True)
+        t=os.path.join(d,".wtest");open(t,"w").write("x");os.remove(t)   # writable?
+        _migrate(old,d)
+        return d
+    except Exception:
+        os.makedirs(old,exist_ok=True);return old
 DATA_DIR=_data_dir()
 def P(n):return os.path.join(DATA_DIR,n)
 
@@ -55,6 +72,7 @@ class _KyberPyBackend:
     def generate_keypair(self):
         a,b=self._k.keygen();return (a,b) if len(a)==EK else (b,a)
     def encaps(self,pk):
+        if len(pk)!=EK:raise ValueError(f"encaps needs public key ({EK}B), got {len(pk)}B")
         x,y=self._k.encaps(pk);return (x,y) if len(x)==CT else (y,x)
     def decaps(self,ct,sk):
         try:return self._k.decaps(ct,sk)
@@ -68,6 +86,7 @@ class _OqsBackend:
         import oqs
         with oqs.KeyEncapsulation(self._m) as k:return k.generate_keypair()
     def encaps(self,pk):
+        if len(pk)!=EK:raise ValueError(f"encaps needs public key ({EK}B), got {len(pk)}B")
         import oqs
         with oqs.KeyEncapsulation(self._m) as k:c,s=k.encaps(pk);return c,s
     def decaps(self,ct,sk):
@@ -112,11 +131,24 @@ def unpad(p):
     return p[4:4+l]
 def clean_b64(r):
     return "".join(l.strip() for l in r.splitlines() if l.strip() and not l.strip().startswith("-----")).replace("-","+").replace("_","/")
+def valid_pub(b):return isinstance(b,(bytes,bytearray)) and len(b)==EK
 def parse_pubkey(t):
     s=clean_b64(t)
     for p in ("LCAP1+","LCAP1-"):
         if s.startswith(p):s=s[len(p):];break
-    s+="="*(-len(s)%4);return base64.b64decode(s,validate=True)
+    s+="="*(-len(s)%4)
+    b=base64.b64decode(s,validate=True)
+    if not valid_pub(b):
+        raise ValueError("Not a valid PUBLIC key (wrong length). Copy the LCAP1- public key, not a private key.")
+    return b
+def norm_identity(d):
+    pk,sk=d.get("pq_pk"),d.get("pq_sk")
+    if not pk or not sk:return None
+    if isinstance(pk,str):pk=ub64(pk)
+    if isinstance(sk,str):sk=ub64(sk)
+    if len(pk)==EK and len(sk)==DK:return {"pq_pk":pk,"pq_sk":sk}
+    if len(pk)==DK and len(sk)==EK:return {"pq_pk":sk,"pq_sk":pk}
+    return None
 
 def secure_shred(fp,passes=7):
     if not os.path.isfile(fp):return
@@ -172,7 +204,9 @@ def lca_size(n):return 4+2+aad_len()+8+8*n+32+n*31
 PAYLOAD_MAX=lca_size(CHUNK);PACKET=12+HJ+16+PAYLOAD_MAX
 
 def make_identity():
-    pq_pk,pq_sk=PQ_KEM.generate_keypair();return {"pq_sk":pq_sk,"pq_pk":pq_pk}
+    pq_pk,pq_sk=PQ_KEM.generate_keypair()
+    if not (len(pq_pk)==EK and len(pq_sk)==DK):raise ValueError("backend key length mismatch")
+    return {"pq_sk":pq_sk,"pq_pk":pq_pk}
 def id_bundle(i):return i["pq_pk"]
 def id_fp(b):return hashlib.sha256(b).digest()
 def pair_h(a,b):return hashlib.sha256(b"".join(sorted((a,b)))).digest()
@@ -184,7 +218,11 @@ def contacts_load():
     if os.path.exists(P("lc_contacts.txt")):
         for ln in open(P("lc_contacts.txt"),encoding="utf-8"):
             n,_,b=ln.strip().partition("\t")
-            if n and b:d[n]=base64.urlsafe_b64decode(b+"="*(-len(b)%4))
+            if n and b:
+                try:
+                    bb=base64.urlsafe_b64decode(b+"="*(-len(b)%4))
+                    if valid_pub(bb):d[n]=bb
+                except Exception:pass
     return d
 def contact_add(n,b):
     with open(P("lc_contacts.txt"),"a",encoding="utf-8") as f:
@@ -248,6 +286,7 @@ class Session:
             {int(k):ub64(v) for k,v in d["sk"].items()})
 
 def hs_req(idn,pb):
+    if not valid_pub(pb):raise ValueError("Contact public key invalid. Re-add them with their current LCAP1- public key.")
     me=idn["pq_pk"]
     eA_sk,eA_pk=PQ_KEM.generate_keypair()
     ctb,ssb=PQ_KEM.encaps(pb)
@@ -259,6 +298,7 @@ def hs_rsp(idn,rb):
     pay,mac=rb[:-32],rb[-32:]
     f,_=untlv(pay,6);tag,meA,eA_pk,ctb,ts,_=f
     if tag!=b"LCREQ":raise ValueError("not an invite")
+    if not valid_pub(meA):raise ValueError("invite has bad key")
     check_fresh(ts)
     meB=idn["pq_pk"]
     ssb=PQ_KEM.decaps(ctb,idn["pq_sk"])
@@ -295,19 +335,12 @@ def feed(s,pkt,mf,pf,buf):
         pd=b"".join(b["parts"][i] for i in range(need))[:tot];del buf[mid];return unpad(pd)
     return None
 
-HELP="""DERF PQ+FS — post-quantum AND forward-secret two-box tool
-
-All asymmetric crypto is ML-KEM-768 (NIST L3). The handshake adds an
-EPHEMERAL ML-KEM keypair for forward secrecy. Ratchet + MACs use
-SHA-256/HMAC/ChaCha20 (quantum-safe). No RSA/ECC/X25519.
-
-Data files are stored NEXT TO the executable (portable / USB friendly).
-Wrong vault passkey => app closes. One instance at a time.
-Change passkey re-encrypts everything. NUKE shreds all data (7-pass).
-
+HELP="""DERF PQ+FS — post-quantum + forward-secret two-box tool.
+All data lives in  Desktop/Derf  (auto-created, migrated from old location).
+Wrong passkey closes. One instance. Change passkey re-encrypts. NUKE shreds.
 ENCRYPT: pick person, type, ENCRYPT -> copied. DECRYPT: paste -> DECRYPT.
-PAIRING (once): exchange keys; invite -> reply -> finish. Compare safety code.
-RULES: open within 7 min.
+PAIRING once: exchange LCAP1- public keys; invite -> reply -> finish.
+RULES: open within 7 min; compare safety code once.
 """
 
 class App:
@@ -320,7 +353,7 @@ class App:
         if not self.check_vault():
             messagebox.showerror("Wrong Passkey","Incorrect vault passphrase. Closing to protect your data.")
             root.destroy();sys.exit(1)
-        self.ensure_identity();self.build();self.status("Ready.")
+        self.ensure_identity();self.build();self.status(f"Data folder: {DATA_DIR}")
     def vault_prompt(self):
         global VAULT
         self._pw=""
@@ -341,11 +374,18 @@ class App:
     def ensure_identity(self):
         if os.path.exists(P("lc_identity.json")):
             try:
-                d=vload(P("lc_identity.json"));self.idn={"pq_sk":ub64(d["pq_sk"]),"pq_pk":ub64(d["pq_pk"])};return
-            except Exception as e:
-                messagebox.showerror("Fatal",f"Identity corrupted: {e}");self.root.destroy();sys.exit(1)
+                d=vload(P("lc_identity.json"))
+                norm=norm_identity(d)
+                if norm:
+                    self.idn=norm
+                    vsave(P("lc_identity.json"),{"pq_sk":b64(norm["pq_sk"]),"pq_pk":b64(norm["pq_pk"])})
+                    return
+            except Exception:pass
+            try:secure_shred(P("lc_identity.json"))
+            except Exception:pass
         self.idn=make_identity()
         vsave(P("lc_identity.json"),{"pq_sk":b64(self.idn["pq_sk"]),"pq_pk":b64(self.idn["pq_pk"])})
+        messagebox.showinfo("Identity","A new identity was created in Desktop/Derf.")
     def my_pub(self):return "LCAP1-"+base64.urlsafe_b64encode(id_bundle(self.idn)).decode().rstrip("=")
     def clip_set(self,s):self.root.clipboard_clear();self.root.clipboard_append(s)
     def clip_get(self):
@@ -374,7 +414,6 @@ class App:
             except Exception:pass
         VAULT=derive_vault(newpw)
         for f,dta in data.items():vsave(f,dta)
-        self.status("Passkey changed.")
         messagebox.showinfo("Changed","Passkey changed.")
     def build(self):
         nb=ttk.Notebook(self.root);nb.pack(fill="both",expand=True,padx=8,pady=8)
@@ -456,7 +495,7 @@ class App:
         tk.Button(f,text="🚨 NUKE ALL DATA",command=self.nuke_everything,bg="darkred",fg="white",font=("",11,"bold")).pack(pady=20)
         self.refresh_list()
     def nuke_everything(self):
-        if not messagebox.askyesno("NUKE","Destroy ALL keys/contacts/sessions? Cannot be undone."):return
+        if not messagebox.askyesno("NUKE","Destroy ALL keys/contacts/sessions in Desktop/Derf? Cannot be undone."):return
         if not messagebox.askyesno("CONFIRM","Final warning. Proceed?"):return
         nuke_all_files();self.clip_set("");self.idn=None;self.buffers={}
         messagebox.showinfo("Nuked","All data destroyed. Closing.");self.root.destroy()
@@ -469,7 +508,7 @@ class App:
         n=self.p_name.get().strip();raw=self.p_key.get("1.0",tk.END).strip()
         if not n or not raw:return messagebox.showerror("Add","Name + key required.")
         try:b=parse_pubkey(raw)
-        except Exception:return messagebox.showerror("Add","Bad key.")
+        except Exception as e:return messagebox.showerror("Add",str(e))
         contact_add(n,b);self.refresh_list();self.refresh_people();self.build_pairing(n,b)
     def build_pairing(self,name,bundle):
         for w in self.pair_frame.winfo_children():w.destroy()
