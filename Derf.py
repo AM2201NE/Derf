@@ -534,7 +534,6 @@ BG_SIDEBAR  = (0.075, 0.080, 0.095, 1)      # #131418
 SURFACE_CARD = (0.12, 0.13, 0.16, 1)        # #1F2129
 SURFACE_ALT  = (0.16, 0.17, 0.22, 1)        # #292C38
 CYAN_PRIMARY = (0.0, 0.94, 1.0, 1)          # #00F0FF Electric Cyan
-CYAN_HOVER   = (0.0, 0.75, 0.82, 1)
 TEXT_MAIN    = (0.93, 0.94, 0.97, 1)        # #EEF0F8
 TEXT_MUTED   = (0.52, 0.56, 0.65, 1)        # #858FA6
 COLOR_GREEN  = (0.0, 0.88, 0.45, 1)        # #00E073 Neon Green
@@ -557,7 +556,7 @@ def safe_paste():
     return _CLIPBOARD_TEXT
 
 class CardPanel(BoxLayout):
-    """Sleek container panel with rounded corners and glass surface shift."""
+    """Sleek container panel with rounded corners and surface background."""
     def __init__(self, bg_color=SURFACE_CARD, radius=12, border_color=None, **kwargs):
         super().__init__(**kwargs)
         self.bg_color = bg_color
@@ -588,19 +587,25 @@ class PrimaryButton(Button):
         self.bg_color = bg_color
         self.color = text_color
         self.bold = True
-        self.font_size = '13sp'
+        self.font_size = '12sp'
+        self.halign = 'center'
+        self.valign = 'middle'
         self.radius = radius
+        self.bind(size=self._update_text_size)
         with self.canvas.before:
             Color(*self.bg_color)
             self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
         self.bind(pos=self._update_rect, size=self._update_rect)
+
+    def _update_text_size(self, *args):
+        self.text_size = (self.width - 12, None)
 
     def _update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
 class SecondaryButton(Button):
-    """Subtle Ghost/Secondary Button."""
+    """Subtle Secondary Button."""
     def __init__(self, text="", bg_color=SURFACE_ALT, text_color=CYAN_PRIMARY, radius=8, **kwargs):
         super().__init__(**kwargs)
         self.text = text
@@ -610,12 +615,18 @@ class SecondaryButton(Button):
         self.bg_color = bg_color
         self.color = text_color
         self.bold = True
-        self.font_size = '12sp'
+        self.font_size = '11sp'
+        self.halign = 'center'
+        self.valign = 'middle'
         self.radius = radius
+        self.bind(size=self._update_text_size)
         with self.canvas.before:
             Color(*self.bg_color)
             self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
         self.bind(pos=self._update_rect, size=self._update_rect)
+
+    def _update_text_size(self, *args):
+        self.text_size = (self.width - 10, None)
 
     def _update_rect(self, *args):
         self.rect.pos = self.pos
@@ -633,18 +644,19 @@ class VaultScreen(Screen):
             self.bg_rect = Rectangle(pos=layout.pos, size=layout.size)
         layout.bind(pos=self._update_bg, size=self._update_bg)
 
-        card = CardPanel(orientation='vertical', size_hint=(None, None), size=(440, 340), padding=28, spacing=16)
+        card = CardPanel(orientation='vertical', size_hint=(None, None), size=(440, 320), padding=28, spacing=16)
 
-        # Header Badge
         header_box = BoxLayout(orientation='vertical', size_hint_y=None, height=65, spacing=4)
-        header_box.add_widget(Label(text="DERF VAULT", font_size='22sp', bold=True, color=CYAN_PRIMARY, halign='center'))
-        header_box.add_widget(Label(text="Post-Quantum Master Encryption Vault", font_size='12sp', color=TEXT_MUTED, halign='center'))
+        header_box.add_widget(Label(text="DERF VAULT", font_size='20sp', bold=True, color=CYAN_PRIMARY, halign='center', valign='middle'))
+        header_box.add_widget(Label(text="Post-Quantum Master Encryption Vault", font_size='11sp', color=TEXT_MUTED, halign='center', valign='middle'))
+        for c in header_box.children: c.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
 
         self.pass_input = TextInput(password=True, multiline=False, hint_text="Enter Master Passphrase...",
                                    background_color=(0.07, 0.08, 0.10, 1), foreground_color=TEXT_MAIN,
-                                   cursor_color=CYAN_PRIMARY, size_hint_y=None, height=45, padding=(14, 12))
+                                   cursor_color=CYAN_PRIMARY, size_hint_y=None, height=45, padding=(14, 12), font_size='13sp')
 
-        self.err_lbl = Label(text="", font_size='12sp', color=COLOR_RED, size_hint_y=None, height=20)
+        self.err_lbl = Label(text="", font_size='11sp', color=COLOR_RED, size_hint_y=None, height=20, halign='center', valign='middle')
+        self.err_lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
 
         unlock_btn = PrimaryButton(text="UNLOCK VAULT", size_hint_y=None, height=45, radius=12)
         unlock_btn.bind(on_release=self.do_unlock)
@@ -696,7 +708,6 @@ class MainScreen(Screen):
         self.app_ref = app_ref
         self.buffers = {}
 
-        # Main Horizontal Layout: Sidebar + Workspace
         self.root_box = BoxLayout(orientation='horizontal')
 
         with self.root_box.canvas.before:
@@ -705,30 +716,29 @@ class MainScreen(Screen):
         self.root_box.bind(pos=self._update_bg, size=self._update_bg)
 
         # ---------------- 1. LEFT SIDEBAR (Width: 280dp) ----------------
-        sidebar = CardPanel(bg_color=BG_SIDEBAR, radius=0, size_hint_x=None, width=280, orientation='vertical', padding=16, spacing=16)
+        sidebar = CardPanel(bg_color=BG_SIDEBAR, radius=0, size_hint_x=None, width=280, orientation='vertical', padding=16, spacing=14)
 
-        # Logo & App Title
-        branding = BoxLayout(orientation='vertical', size_hint_y=None, height=55, spacing=2)
-        branding.add_widget(Label(text="DERF", font_size='22sp', bold=True, color=CYAN_PRIMARY, halign='left'))
-        branding.add_widget(Label(text="Post-Quantum PQ+FS Messenger", font_size='11sp', color=TEXT_MUTED, halign='left'))
-        for child in branding.children: child.bind(size=child.setter('text_size'))
+        branding = BoxLayout(orientation='vertical', size_hint_y=None, height=52, spacing=2)
+        lbl_b1 = Label(text="DERF", font_size='20sp', bold=True, color=CYAN_PRIMARY, halign='left', valign='middle')
+        lbl_b2 = Label(text="Post-Quantum PQ+FS Messenger", font_size='11sp', color=TEXT_MUTED, halign='left', valign='middle')
+        branding.add_widget(lbl_b1)
+        branding.add_widget(lbl_b2)
+        for child in branding.children: child.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
         sidebar.add_widget(branding)
 
-        # Contact List Header
-        sb_contacts_hdr = BoxLayout(orientation='horizontal', size_hint_y=None, height=28)
-        sb_contacts_hdr.add_widget(Label(text="CONTACTS & PEERS", font_size='11sp', bold=True, color=TEXT_MUTED, halign='left'))
-        for child in sb_contacts_hdr.children: child.bind(size=child.setter('text_size'))
+        sb_contacts_hdr = BoxLayout(orientation='horizontal', size_hint_y=None, height=24)
+        lbl_c_hdr = Label(text="CONTACTS & PEERS", font_size='11sp', bold=True, color=TEXT_MUTED, halign='left', valign='middle')
+        lbl_c_hdr.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        sb_contacts_hdr.add_widget(lbl_c_hdr)
         sidebar.add_widget(sb_contacts_hdr)
 
-        # Contact Scroll List
         self.contact_scroll = ScrollView()
         self.contact_list_layout = GridLayout(cols=1, spacing=8, size_hint_y=None)
         self.contact_list_layout.bind(minimum_height=self.contact_list_layout.setter('height'))
         self.contact_scroll.add_widget(self.contact_list_layout)
         sidebar.add_widget(self.contact_scroll)
 
-        # Sidebar Bottom Actions
-        sb_actions = BoxLayout(orientation='vertical', size_hint_y=None, height=130, spacing=8)
+        sb_actions = BoxLayout(orientation='vertical', size_hint_y=None, height=128, spacing=8)
 
         btn_add_peer = PrimaryButton(text="+ ADD NEW PEER", size_hint_y=None, height=36, radius=8)
         btn_add_peer.bind(on_release=lambda x: self.switch_tab("contacts"))
@@ -749,20 +759,18 @@ class MainScreen(Screen):
         # ---------------- 2. RIGHT WORKSPACE STAGE ----------------
         self.workspace = BoxLayout(orientation='vertical', padding=16, spacing=12)
 
-        # Stage Top Header
-        self.stage_hdr = CardPanel(bg_color=SURFACE_CARD, size_hint_y=None, height=60, padding=(16, 10), orientation='horizontal', spacing=12)
+        self.stage_hdr = CardPanel(bg_color=SURFACE_CARD, size_hint_y=None, height=58, padding=(16, 10), orientation='horizontal', spacing=12)
 
-        self.active_peer_lbl = Label(text="Select a contact to chat", font_size='16sp', bold=True, color=TEXT_MAIN, halign='left')
-        self.active_peer_lbl.bind(size=self.active_peer_lbl.setter('text_size'))
+        self.active_peer_lbl = Label(text="Select a contact to chat", font_size='15sp', bold=True, color=TEXT_MAIN, halign='left', valign='middle')
+        self.active_peer_lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
 
-        self.safety_badge = Label(text="Safety: N/A", font_size='12sp', color=TEXT_MUTED, halign='right')
-        self.safety_badge.bind(size=self.safety_badge.setter('text_size'))
+        self.safety_badge = Label(text="Safety: N/A", font_size='12sp', color=TEXT_MUTED, halign='right', valign='middle')
+        self.safety_badge.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
 
         self.stage_hdr.add_widget(self.active_peer_lbl)
         self.stage_hdr.add_widget(self.safety_badge)
         self.workspace.add_widget(self.stage_hdr)
 
-        # Stage Sub-Nav Pills
         nav_pills = BoxLayout(orientation='horizontal', size_hint_y=None, height=38, spacing=8)
         self.pill_btns = {}
 
@@ -781,13 +789,11 @@ class MainScreen(Screen):
 
         self.workspace.add_widget(nav_pills)
 
-        # Stage Content View Container
         self.content_container = BoxLayout(orientation='vertical')
         self.workspace.add_widget(self.content_container)
 
-        # Status Bar
-        self.status_lbl = Label(text=f"Data Dir: {DATA_DIR}", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=20, halign='left')
-        self.status_lbl.bind(size=self.status_lbl.setter('text_size'))
+        self.status_lbl = Label(text=f"Data Dir: {DATA_DIR}", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=20, halign='left', valign='middle')
+        self.status_lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
         self.workspace.add_widget(self.status_lbl)
 
         self.root_box.add_widget(self.workspace)
@@ -808,7 +814,8 @@ class MainScreen(Screen):
         self.contact_list_layout.clear_widgets()
         cs = contacts_load()
         if not cs:
-            lbl = Label(text="No Contacts Yet", font_size='12sp', color=TEXT_MUTED, size_hint_y=None, height=30)
+            lbl = Label(text="No Contacts Yet", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=30, halign='center', valign='middle')
+            lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
             self.contact_list_layout.add_widget(lbl)
             return
 
@@ -817,23 +824,25 @@ class MainScreen(Screen):
             card = CardPanel(bg_color=SURFACE_ALT if name == self.selected_peer else SURFACE_CARD,
                              radius=8, size_hint_y=None, height=52, padding=(10, 8), orientation='horizontal', spacing=8)
 
-            # Avatar Icon Box
             avatar = CardPanel(bg_color=(0.20, 0.22, 0.28, 1), radius=6, size_hint=(None, None), size=(34, 34))
-            avatar.add_widget(Label(text=name[:2].upper(), font_size='12sp', bold=True, color=CYAN_PRIMARY))
+            lbl_av = Label(text=name[:2].upper(), font_size='12sp', bold=True, color=CYAN_PRIMARY, halign='center', valign='middle')
+            lbl_av.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+            avatar.add_widget(lbl_av)
 
             info = BoxLayout(orientation='vertical', spacing=2)
-            info.add_widget(Label(text=name, font_size='13sp', bold=True, color=TEXT_MAIN, halign='left'))
+            lbl_n = Label(text=name, font_size='12sp', bold=True, color=TEXT_MAIN, halign='left', valign='middle', shorten=True, shorten_from='right')
 
             st_text = "[ PAIRED ]" if is_paired else "[ UNPAIRED ]"
             st_color = COLOR_GREEN if is_paired else TEXT_MUTED
-            info.add_widget(Label(text=st_text, font_size='10sp', color=st_color, halign='left'))
+            lbl_st = Label(text=st_text, font_size='10sp', color=st_color, halign='left', valign='middle')
 
-            for child in info.children: child.bind(size=child.setter('text_size'))
+            info.add_widget(lbl_n)
+            info.add_widget(lbl_st)
+            for child in info.children: child.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
 
             card.add_widget(avatar)
             card.add_widget(info)
 
-            # Select contact callback
             def make_select_cb(p_name):
                 return lambda x: self.select_peer(p_name)
 
@@ -885,10 +894,12 @@ class MainScreen(Screen):
 
         # Encrypt Column
         enc_box = CardPanel(orientation='vertical', padding=12, spacing=10)
-        enc_box.add_widget(Label(text="ENCRYPT CONFIDENTIAL MESSAGE", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left'))
+        lbl_e1 = Label(text="ENCRYPT CONFIDENTIAL MESSAGE", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_e1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        enc_box.add_widget(lbl_e1)
 
         self.enc_input = TextInput(hint_text="Type confidential plaintext message here...", background_color=(0.06, 0.07, 0.09, 1),
-                                   foreground_color=TEXT_MAIN, cursor_color=CYAN_PRIMARY, padding=(10, 10))
+                                   foreground_color=TEXT_MAIN, cursor_color=CYAN_PRIMARY, padding=(12, 10), font_size='12sp')
         enc_box.add_widget(self.enc_input)
 
         btn_enc = PrimaryButton(text="[ LOCK & ENCRYPT MESSAGE ]", size_hint_y=None, height=42, radius=10)
@@ -896,7 +907,7 @@ class MainScreen(Screen):
         enc_box.add_widget(btn_enc)
 
         self.enc_output = TextInput(hint_text="Encrypted Base64 uniform packets output...", readonly=True,
-                                    background_color=(0.06, 0.07, 0.09, 1), foreground_color=CYAN_PRIMARY)
+                                    background_color=(0.06, 0.07, 0.09, 1), foreground_color=CYAN_PRIMARY, padding=(12, 10), font_size='11sp')
         enc_box.add_widget(self.enc_output)
 
         enc_act = BoxLayout(orientation='horizontal', size_hint_y=None, height=36, spacing=8)
@@ -910,10 +921,12 @@ class MainScreen(Screen):
 
         # Decrypt Column
         dec_box = CardPanel(orientation='vertical', padding=12, spacing=10)
-        dec_box.add_widget(Label(text="DECRYPT INCOMING PACKETS", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left'))
+        lbl_d1 = Label(text="DECRYPT INCOMING PACKETS", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_d1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        dec_box.add_widget(lbl_d1)
 
         self.dec_input = TextInput(hint_text="Paste received Base64 ciphertext packets here...", background_color=(0.06, 0.07, 0.09, 1),
-                                   foreground_color=TEXT_MAIN, cursor_color=CYAN_PRIMARY, padding=(10, 10))
+                                   foreground_color=TEXT_MAIN, cursor_color=CYAN_PRIMARY, padding=(12, 10), font_size='12sp')
         dec_box.add_widget(self.dec_input)
 
         btn_dec = PrimaryButton(text="[ UNLOCK & DECRYPT PACKETS ]", size_hint_y=None, height=42, radius=10)
@@ -921,7 +934,7 @@ class MainScreen(Screen):
         dec_box.add_widget(btn_dec)
 
         self.dec_output = TextInput(hint_text="Decrypted message payload result...", readonly=True,
-                                    background_color=(0.06, 0.07, 0.09, 1), foreground_color=COLOR_GREEN, font_size='14sp')
+                                    background_color=(0.06, 0.07, 0.09, 1), foreground_color=COLOR_GREEN, padding=(12, 10), font_size='13sp')
         dec_box.add_widget(self.dec_output)
 
         dec_act = BoxLayout(orientation='horizontal', size_hint_y=None, height=36, spacing=8)
@@ -1018,12 +1031,13 @@ class MainScreen(Screen):
     def build_contacts_view(self):
         layout = BoxLayout(orientation='vertical', spacing=12)
 
-        # My Identity Key Card
         my_card = CardPanel(orientation='vertical', size_hint_y=None, height=115, padding=12, spacing=6)
-        my_card.add_widget(Label(text="YOUR PUBLIC IDENTITY KEY (ML-KEM-768)", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=20, halign='left'))
+        lbl_k1 = Label(text="YOUR PUBLIC IDENTITY KEY (ML-KEM-768)", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=20, halign='left', valign='middle')
+        lbl_k1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        my_card.add_widget(lbl_k1)
 
         my_pub_str = "LCAP1-" + base64.urlsafe_b64encode(id_bundle(self.app_ref.idn)).decode().rstrip("=")
-        key_input = TextInput(text=my_pub_str, readonly=True, background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, size_hint_y=None, height=40)
+        key_input = TextInput(text=my_pub_str, readonly=True, background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, size_hint_y=None, height=40, padding=(12, 10), font_size='11sp')
         my_card.add_widget(key_input)
 
         btn_c_my = PrimaryButton(text="[ COPY MY PUBLIC KEY ]", size_hint_y=None, height=32, radius=8)
@@ -1033,14 +1047,15 @@ class MainScreen(Screen):
 
         split_pair = BoxLayout(orientation='horizontal', spacing=12)
 
-        # Add Contact Card
         add_box = CardPanel(orientation='vertical', padding=12, spacing=10)
-        add_box.add_widget(Label(text="ADD NEW CONTACT", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left'))
+        lbl_a1 = Label(text="ADD NEW CONTACT", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_a1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        add_box.add_widget(lbl_a1)
 
         self.new_name = TextInput(hint_text="Contact Name (e.g. Alice)", multiline=False, background_color=(0.06, 0.07, 0.09, 1),
-                                  foreground_color=TEXT_MAIN, size_hint_y=None, height=38)
+                                  foreground_color=TEXT_MAIN, size_hint_y=None, height=38, padding=(12, 10), font_size='12sp')
         self.new_key = TextInput(hint_text="Paste their LCAP1- Public Key...", background_color=(0.06, 0.07, 0.09, 1),
-                                 foreground_color=TEXT_MAIN)
+                                 foreground_color=TEXT_MAIN, padding=(12, 10), font_size='11sp')
 
         btn_add = PrimaryButton(text="[ SAVE CONTACT ]", size_hint_y=None, height=38, radius=8)
         btn_add.bind(on_release=self.do_add_contact)
@@ -1050,9 +1065,10 @@ class MainScreen(Screen):
         add_box.add_widget(btn_add)
         split_pair.add_widget(add_box)
 
-        # Guided Pairing Wizard Card
         pair_box = CardPanel(orientation='vertical', padding=12, spacing=10)
-        pair_box.add_widget(Label(text="STEP-BY-STEP PAIRING WIZARD", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left'))
+        lbl_p1 = Label(text="STEP-BY-STEP PAIRING WIZARD", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_p1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        pair_box.add_widget(lbl_p1)
 
         pair_mode_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=36, spacing=8)
         self.btn_m_a = SecondaryButton(text="I Start (Send Invite)")
@@ -1078,11 +1094,13 @@ class MainScreen(Screen):
         pair_mode_box.add_widget(self.btn_m_b)
         pair_box.add_widget(pair_mode_box)
 
-        self.p_step1_lbl = Label(text="Step 1: Generate & Copy Invite", font_size='12sp', color=TEXT_MAIN, size_hint_y=None, height=20, halign='left')
-        self.p_io1 = TextInput(hint_text="Invite payload will appear here...", background_color=(0.06, 0.07, 0.09, 1), foreground_color=CYAN_PRIMARY)
+        self.p_step1_lbl = Label(text="Step 1: Generate & Copy Invite", font_size='11sp', color=TEXT_MAIN, size_hint_y=None, height=20, halign='left', valign='middle')
+        self.p_step1_lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        self.p_io1 = TextInput(hint_text="Invite payload will appear here...", background_color=(0.06, 0.07, 0.09, 1), foreground_color=CYAN_PRIMARY, padding=(12, 10), font_size='11sp')
 
-        self.p_step2_lbl = Label(text="Step 2: Paste Reply & Finish", font_size='12sp', color=TEXT_MAIN, size_hint_y=None, height=20, halign='left')
-        self.p_io2 = TextInput(hint_text="Paste peer reply here...", background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN)
+        self.p_step2_lbl = Label(text="Step 2: Paste Reply & Finish", font_size='11sp', color=TEXT_MAIN, size_hint_y=None, height=20, halign='left', valign='middle')
+        self.p_step2_lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        self.p_io2 = TextInput(hint_text="Paste peer reply here...", background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, padding=(12, 10), font_size='11sp')
 
         btn_exec_pair = PrimaryButton(text="[ EXECUTE PAIRING STEP ]", size_hint_y=None, height=38, radius=8)
         btn_exec_pair.bind(on_release=self.execute_pairing)
@@ -1178,11 +1196,16 @@ class MainScreen(Screen):
         ]
 
         for title, desc in cards_data:
-            c = CardPanel(orientation='vertical', size_hint_y=None, height=90, padding=12, spacing=4)
-            c.add_widget(Label(text=title, font_size='14sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left'))
-            lbl_desc = Label(text=desc, font_size='12sp', color=TEXT_MAIN, halign='left')
-            lbl_desc.bind(size=lbl_desc.setter('text_size'))
+            c = CardPanel(orientation='vertical', size_hint_y=None, height=95, padding=14, spacing=4)
+
+            lbl_t = Label(text=title, font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+            lbl_t.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+            c.add_widget(lbl_t)
+
+            lbl_desc = Label(text=desc, font_size='11sp', color=TEXT_MAIN, halign='left', valign='top')
+            lbl_desc.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
             c.add_widget(lbl_desc)
+
             grid.add_widget(c)
 
         layout.add_widget(grid)
@@ -1195,7 +1218,7 @@ class MainScreen(Screen):
         box.bind(minimum_height=box.setter('height'))
 
         help_text = (
-            "[b][size=16sp]DERF PQ+FS QUICKSTART GUIDE[/size][/b]\n\n"
+            "[b][size=15sp]DERF PQ+FS QUICKSTART GUIDE[/size][/b]\n\n"
             "1. [b]Exchange Public Keys[/b]: Copy your [i]LCAP1-...[/i] public key from the Pairing tab and add each other as contacts.\n"
             "2. [b]One-Time Pairing[/b]:\n"
             "   - Initiator selects 'I Start', clicks 'Execute Pairing Step' to copy an Invite string, and sends it to the Peer.\n"
@@ -1208,8 +1231,8 @@ class MainScreen(Screen):
             "• Compare the 12-digit Safety Code out-of-band once to verify peer key authenticity."
         )
 
-        lbl = Label(text=help_text, markup=True, font_size='13sp', color=TEXT_MAIN, halign='left', size_hint_y=None)
-        lbl.bind(size=lbl.setter('text_size'))
+        lbl = Label(text=help_text, markup=True, font_size='12sp', color=TEXT_MAIN, halign='left', valign='top', size_hint_y=None)
+        lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
         lbl.bind(texture_size=lambda instance, val: setattr(lbl, 'height', val[1]))
 
         box.add_widget(lbl)
@@ -1223,8 +1246,11 @@ class MainScreen(Screen):
             self.status_lbl.text = f"[*] {msg}"
 
     def show_popup(self, title, msg):
-        content = BoxLayout(orientation='vertical', padding=12, spacing=10)
-        content.add_widget(Label(text=msg, font_size='13sp', color=TEXT_MAIN))
+        content = BoxLayout(orientation='vertical', padding=14, spacing=10)
+        lbl_msg = Label(text=msg, font_size='12sp', color=TEXT_MAIN, halign='center', valign='middle')
+        lbl_msg.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        content.add_widget(lbl_msg)
+
         btn = PrimaryButton(text="OK", size_hint_y=None, height=36, radius=8)
         content.add_widget(btn)
 
@@ -1235,12 +1261,12 @@ class MainScreen(Screen):
 
     def show_change_passkey(self, *args):
         content = BoxLayout(orientation='vertical', padding=12, spacing=8)
-        content.add_widget(Label(text="New Vault Passphrase:", font_size='12sp', color=TEXT_MAIN))
-        e1 = TextInput(password=True, multiline=False, background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, size_hint_y=None, height=35)
+        content.add_widget(Label(text="New Vault Passphrase:", font_size='11sp', color=TEXT_MAIN, halign='left', valign='middle'))
+        e1 = TextInput(password=True, multiline=False, background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, size_hint_y=None, height=35, padding=(10, 8), font_size='12sp')
         content.add_widget(e1)
 
-        content.add_widget(Label(text="Confirm Passphrase:", font_size='12sp', color=TEXT_MAIN))
-        e2 = TextInput(password=True, multiline=False, background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, size_hint_y=None, height=35)
+        content.add_widget(Label(text="Confirm Passphrase:", font_size='11sp', color=TEXT_MAIN, halign='left', valign='middle'))
+        e2 = TextInput(password=True, multiline=False, background_color=(0.06, 0.07, 0.09, 1), foreground_color=TEXT_MAIN, size_hint_y=None, height=35, padding=(10, 8), font_size='12sp')
         content.add_widget(e2)
 
         btn_change = PrimaryButton(text="CHANGE PASSKEY", size_hint_y=None, height=36, radius=8)
@@ -1269,11 +1295,13 @@ class MainScreen(Screen):
 
     def confirm_nuke(self, *args):
         content = BoxLayout(orientation='vertical', padding=12, spacing=10)
-        content.add_widget(Label(text="WARNING: Destroy ALL keys, sessions, and contacts in Desktop/Derf?", font_size='12sp', color=COLOR_RED))
+        lbl_w = Label(text="WARNING: Destroy ALL keys, sessions, and contacts in Desktop/Derf?", font_size='11sp', color=COLOR_RED, halign='center', valign='middle')
+        lbl_w.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        content.add_widget(lbl_w)
 
         btn_box = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height=36)
         btn_cancel = SecondaryButton(text="Cancel")
-        btn_yes = Button(text="DESTROY EVERYTHING", background_normal='', background_color=COLOR_RED, color=TEXT_MAIN, bold=True)
+        btn_yes = Button(text="DESTROY EVERYTHING", background_normal='', background_color=COLOR_RED, color=TEXT_MAIN, bold=True, font_size='11sp')
         btn_box.add_widget(btn_cancel)
         btn_box.add_widget(btn_yes)
         content.add_widget(btn_box)
