@@ -877,9 +877,17 @@ class MainScreen(Screen):
             card.add_widget(info)
 
             def make_select_cb(p_name):
-                return lambda x: self.select_peer(p_name)
+                def on_touch(instance, touch):
+                    if instance.collide_point(*touch.pos):
+                        self.select_peer(p_name)
+                        return True
+                    return False
+                return on_touch
 
-            card.bind(on_touch_down=lambda instance, touch, p=name: make_select_cb(p)(x) if instance.collide_point(*touch.pos) else None)
+            cb = make_select_cb(name)
+            card.bind(on_touch_down=cb)
+            avatar.bind(on_touch_down=cb)
+            info.bind(on_touch_down=cb)
             self.contact_list_layout.add_widget(card)
 
         if not self.selected_peer and cs:
