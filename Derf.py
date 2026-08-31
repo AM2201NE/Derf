@@ -984,7 +984,7 @@ class MainScreen(Screen):
             return
         fn = f"packet_{int(time.time())}_{os.urandom(3).hex()}.bin"
         fp = os.path.join(DROP_DIR, fn)
-        with open(fp, "w") as f: f.write(raw)
+        with open(fp, "w") as f: f.write("DERF:V1:" + raw)
         self.status_lbl.text = f"[*] Saved drop file: {fp}"
         self.show_popup("Saved", f"Packet drop saved to Desktop/Derf/lc_drop/{fn}")
 
@@ -1336,6 +1336,12 @@ class DerfApp(App):
 
         self.sm.add_widget(self.vault_screen)
         self.sm.add_widget(self.main_screen)
+
+        try:
+            start_android_clipboard_monitor(self)
+        except Exception:
+            pass
+
         return self.sm
 
     def on_vault_unlocked(self):
@@ -1350,3 +1356,103 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# =================================================================
+# INVISIBLE LAYER: ANDROID BACKGROUND CLIPBOARD MONITOR (Pyjnius)
+# Runs ONLY inside the packaged Android APK (Buildozer/p4a).
+# Never raises; never alters existing Kivy UI, layout, or colors.
+# =================================================================
+def _android_platform():
+    try:
+        import kivy.utils as ku
+        return ku.platform == "android"
+    except Exception:
+        return False
+
+def start_android_clipboard_monitor(app_ref):
+    """Spawn a daemon thread that polls the Android clipboard for
+    DERF:V1: payloads every 0.5 s and shows a Kivy Toast / Popup with
+    the decrypted plaintext. Safe on all platforms (no-op on desktop).
+    """
+    if not _android_platform():
+        return None
+    try:
+        import threading, time as _t
+        from jnius import autoclass, cast
+
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        activity = PythonActivity.mActivity or PythonActivity.getActivity()
+        Context = autoclass("android.content.Context")
+        clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+
+        running = {"on": True}
+
+        def _toast(msg):
+            try:
+                from kivy.uix.toast import Toast
+                Toast(msg).show()
+            except Exception:
+                try:
+                    Toast = autoclass("android.widget.Toast")
+                    Toast.makeText(activity, str(msg), Toast.LENGTH_LONG).show()
+                except Exception:
+                    pass
+
+        def _decrypt_one(payload):
+            cs = contacts_load()
+            me_fp = id_fp(id_bundle(app_ref.idn))
+            for peer in [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]:
+                try:
+                    sess = Session.load(peer)
+                    lines = [l.strip() for l in payload.splitlines() if l.strip()]
+                    buf = app_ref.main_screen.buffers if app_ref.main_screen else {}
+                    msgs = []
+                    for ln in lines:
+                        try:
+                            pkt = ub64(clean_b64(ln))
+                            out = feed(sess, pkt, me_fp, id_fp(cs[peer]), buf)
+                            if out:
+                                msgs.append(out.decode("utf-8", "replace"))
+                        except Exception:
+                            pass
+                    if msgs:
+                        sess.save(peer)
+                        return "\n".join(msgs)
+                except Exception:
+                    continue
+            return None
+
+        def loop():
+            last = ""
+            while running["on"]:
+                try:
+                    text = ""
+                    try:
+                        clip = clipboard.getPrimaryClip()
+                        if clip and clip.getItemCount() > 0:
+                            item = clip.getItemAt(0)
+                            if item is not None:
+                                text = item.getText() or ""
+                    except Exception:
+                        pass
+                    if not text:
+                        text = safe_paste()
+                    if text and isinstance(text, str) and text != last:
+                        last = text
+                        stripped = text.strip()
+                        prefix = "DERF:V1:"
+                        if stripped.startswith(prefix):
+                            payload = stripped[len(prefix):].strip()
+                            if payload:
+                                pt = _decrypt_one(payload)
+                                if pt:
+                                    _toast(f"DERF decrypted: {pt[:60]}")
+                except Exception:
+                    pass
+                _t.sleep(0.5)
+
+        t = threading.Thread(target=loop, daemon=True)
+        t.start()
+        return running
+    except Exception:
+        return None
