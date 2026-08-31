@@ -514,6 +514,7 @@ if __name__ == '__main__' and IS_SELFTEST:
 
 os.environ["KIVY_NO_ARGS"] = "1"
 from kivy.app import App
+from kivy.clock import Clock
 from kivy.core.clipboard import Clipboard
 from kivy.core.window import Window
 from kivy.graphics import Color, RoundedRectangle, Line, Rectangle
@@ -735,13 +736,13 @@ class MainScreen(Screen):
         self.contact_scroll.add_widget(self.contact_list_layout)
         sidebar.add_widget(self.contact_scroll)
 
-        # 2-User Simulation Card for Single-Device Testing
+        # Single-Device Simulation Card
         sim_card = CardPanel(bg_color=SURFACE_ALT, radius=8, size_hint_y=None, height=75, padding=10, orientation='vertical', spacing=6)
         lbl_sim = Label(text="SINGLE-DEVICE SIMULATOR", font_size='11sp', bold=True, color=CYAN_PRIMARY, halign='left', valign='middle')
         lbl_sim.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
         sim_card.add_widget(lbl_sim)
 
-        btn_auto_pair = PrimaryButton(text="[ ⚡ AUTO-PAIR TEST PEER ]", size_hint_y=None, height=32, radius=6)
+        btn_auto_pair = PrimaryButton(text="[ AUTO-PAIR TEST PEER ]", size_hint_y=None, height=32, radius=6)
         btn_auto_pair.bind(on_release=self.auto_pair_sim_peer)
         sim_card.add_widget(btn_auto_pair)
         sidebar.add_widget(sim_card)
@@ -815,7 +816,6 @@ class MainScreen(Screen):
         self.bg_rect.size = instance.size
 
     def auto_pair_sim_peer(self, *args):
-        """Single-device testing feature: Creates virtual 'Bob Test' peer and auto-completes X3DH handshake."""
         sim_name = "Bob Test"
         try:
             bob_idn = make_identity()
@@ -826,7 +826,6 @@ class MainScreen(Screen):
             alice_sess = hs_complete(self.app_ref.idn, pend, rsp_blob)
 
             alice_sess.save(sim_name)
-            # Save Bob's side of session into a virtual state file
             vsave(P(f"lc_sim_bob_session.json"), {
                 "sid": b64(bob_sess.sid), "role": bob_sess.role, "sck": b64(bob_sess.sck), "rck": b64(bob_sess.rck),
                 "sn": bob_sess.sn, "rn": bob_sess.rn, "hsend": b64(bob_sess.hsend), "hrecv": b64(bob_sess.hrecv),
@@ -835,7 +834,7 @@ class MainScreen(Screen):
 
             self.refresh_views()
             self.select_peer(sim_name)
-            self.show_popup("Auto-Paired!", f"🎉 Created virtual test peer '{sim_name}' & completed ML-KEM-768 handshake!\n\nYou can now encrypt messages and use 'Simulate Bob Reply' to test decryption.")
+            self.show_popup("Auto-Paired!", f"Created virtual test peer '{sim_name}' & completed ML-KEM-768 handshake!\n\nYou can now encrypt messages and use 'Simulate Bob Reply' to test decryption.")
         except Exception as e:
             self.show_popup("Simulator Error", str(e))
 
@@ -947,7 +946,7 @@ class MainScreen(Screen):
         btn_enc.bind(on_release=self.do_encrypt)
         enc_box.add_widget(btn_enc)
 
-        self.enc_output = TextInput(hint_text="Encrypted Base64 uniform packets output...", readonly=True,
+        self.enc_output = TextInput(hint_text="Encrypted DERF:V1: Base64 uniform packets output...", readonly=True,
                                     background_color=(0.06, 0.07, 0.09, 1), foreground_color=CYAN_PRIMARY, padding=(12, 10), font_size='11sp')
         enc_box.add_widget(self.enc_output)
 
@@ -966,7 +965,7 @@ class MainScreen(Screen):
         lbl_d1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
         dec_box.add_widget(lbl_d1)
 
-        self.dec_input = TextInput(hint_text="Paste received Base64 ciphertext packets here...", background_color=(0.06, 0.07, 0.09, 1),
+        self.dec_input = TextInput(hint_text="Paste received DERF:V1: Base64 ciphertext packets here...", background_color=(0.06, 0.07, 0.09, 1),
                                    foreground_color=TEXT_MAIN, cursor_color=CYAN_PRIMARY, padding=(12, 10), font_size='12sp')
         dec_box.add_widget(self.dec_input)
 
@@ -979,7 +978,7 @@ class MainScreen(Screen):
         dec_box.add_widget(self.dec_output)
 
         dec_act = BoxLayout(orientation='horizontal', size_hint_y=None, height=36, spacing=8)
-        btn_sim_bob = SecondaryButton(text="[ 🤖 Simulate Bob Reply ]")
+        btn_sim_bob = SecondaryButton(text="[ Simulate Bob Reply ]")
         btn_sim_bob.bind(on_release=self.simulate_bob_reply)
         btn_p2 = SecondaryButton(text="[ Paste Clipboard ]")
         btn_p2.bind(on_release=lambda x: setattr(self.dec_input, 'text', safe_paste()))
@@ -996,10 +995,9 @@ class MainScreen(Screen):
         return split
 
     def simulate_bob_reply(self, *args):
-        """Single-device simulation: Loads virtual 'Bob Test' session, encrypts a reply from Bob, and auto-decrypts it."""
         sim_path = P("lc_sim_bob_session.json")
         if not os.path.exists(sim_path):
-            self.show_popup("Simulation Error", "Please click '[ ⚡ AUTO-PAIR TEST PEER ]' in the sidebar first to create 'Bob Test'.")
+            self.show_popup("Simulation Error", "Please click '[ AUTO-PAIR TEST PEER ]' in the sidebar first to create 'Bob Test'.")
             return
 
         try:
@@ -1014,14 +1012,13 @@ class MainScreen(Screen):
             msg = f"Hello Alice! Received your encrypted message at {time.strftime('%H:%M:%S')}. Double ratchet & ML-KEM-768 verified!"
             pkts = bob_sess.encrypt(msg.encode('utf-8'), id_fp(bob_idn["pq_pk"]), id_fp(alice_pk))
 
-            # Save Bob's updated ratchet state
             d["sck"] = b64(bob_sess.sck); d["sn"] = bob_sess.sn
             vsave(sim_path, d)
 
-            bob_b64 = "\n".join(b64(p) for p in pkts)
+            bob_b64 = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
             self.dec_input.text = bob_b64
             self.do_decrypt()
-            self.show_popup("Simulated Reply Received", f"🤖 Received & decrypted live simulated packet reply from 'Bob Test'!")
+            self.show_popup("Simulated Reply Received", f"Received & decrypted live simulated packet reply from 'Bob Test'!")
         except Exception as e:
             self.show_popup("Simulate Reply Error", str(e))
 
@@ -1044,7 +1041,8 @@ class MainScreen(Screen):
             pkts = sess.encrypt(pt.encode('utf-8'), me_fp, peer_fp)
             sess.save(peer)
 
-            out_b64 = "\n".join(b64(p) for p in pkts)
+            # DERF:V1: Wrapper Prefix
+            out_b64 = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
             self.enc_output.text = out_b64
             safe_copy(out_b64)
             self.enc_input.text = ""
@@ -1057,6 +1055,8 @@ class MainScreen(Screen):
         if not raw:
             self.show_popup("Save Error", "No encrypted packets to save.")
             return
+        if not raw.startswith("DERF:V1:"):
+            raw = "DERF:V1:\n" + raw
         fn = f"packet_{int(time.time())}_{os.urandom(3).hex()}.bin"
         fp = os.path.join(DROP_DIR, fn)
         with open(fp, "w") as f: f.write(raw)
@@ -1068,6 +1068,10 @@ class MainScreen(Screen):
         if not raw:
             self.show_popup("Decrypt Error", "Paste Base64 packet text first.")
             return
+
+        # DERF:V1: Wrapper Strip Check
+        if raw.startswith("DERF:V1:"):
+            raw = raw[8:].strip()
 
         lines = [l.strip() for l in raw.splitlines() if l.strip()]
         try:
@@ -1302,8 +1306,8 @@ class MainScreen(Screen):
             "3. [b]Send Encrypted Messages[/b]: Go to Messages tab, type plaintext, click ENCRYPT, and copy/send uniform Base64 packets.\n"
             "4. [b]Decrypt Messages[/b]: Paste received Base64 packets into Decrypt box and click DECRYPT.\n\n"
             "[b]Single-Device Testing[/b]:\n"
-            "• Click '[ ⚡ AUTO-PAIR TEST PEER ]' in the sidebar to simulate 'Bob Test' instantly.\n"
-            "• Use '[ 🤖 Simulate Bob Reply ]' in the Decrypt view to test round-trip messaging on a single device.\n\n"
+            "• Click '[ AUTO-PAIR TEST PEER ]' in the sidebar to simulate 'Bob Test' instantly.\n"
+            "• Use '[ Simulate Bob Reply ]' in the Decrypt view to test round-trip messaging on a single device.\n\n"
             "[b]Important Security Rules:[/b]\n"
             "• Messages must be decrypted within [b]7 minutes[/b] (420s freshness window) to prevent replay attacks.\n"
             "• Compare the 12-digit Safety Code out-of-band once to verify peer key authenticity."
@@ -1395,6 +1399,48 @@ class MainScreen(Screen):
         btn_yes.bind(on_release=nuke_now)
         popup.open()
 
+def start_android_clipboard_monitor(app_ref):
+    """Pyjnius Android Background Clipboard Monitor Thread."""
+    try:
+        from jnius import autoclass
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Context = autoclass('android.content.Context')
+        activity = PythonActivity.mActivity
+        clipboard_service = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+
+        def check_android_clip(dt):
+            try:
+                if clipboard_service.hasPrimaryClip():
+                    clip_data = clipboard_service.getPrimaryClip()
+                    if clip_data and clip_data.getItemCount() > 0:
+                        text = str(clip_data.getItemAt(0).getText())
+                        if text and text.startswith("DERF:V1:"):
+                            raw = text[8:].strip()
+                            lines = [l.strip() for l in raw.splitlines() if l.strip()]
+                            pkts = [ub64(clean_b64(l)) for l in lines]
+                            cs = contacts_load()
+                            me_fp = id_fp(id_bundle(app_ref.idn))
+                            paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
+                            for peer in paired:
+                                sess = Session.load(peer)
+                                peer_fp = id_fp(cs[peer])
+                                msgs = []
+                                got = 0
+                                for p in pkts:
+                                    try:
+                                        out = feed(sess, p, me_fp, peer_fp, app_ref.main_screen.buffers)
+                                        if out: msgs.append(out.decode('utf-8')); got += 1
+                                    except Exception: pass
+                                if got:
+                                    sess.save(peer)
+                                    app_ref.main_screen.show_popup(f"Decrypted ({peer})", "\n".join(msgs))
+                                    return
+            except Exception: pass
+
+        Clock.schedule_interval(check_android_clip, 1.0)
+    except Exception as e:
+        print(f"Android Pyjnius monitor status: {e}")
+
 class DerfApp(App):
     def build(self):
         self.title = "Derf PQ+FS — Post-Quantum Messenger"
@@ -1419,6 +1465,7 @@ class DerfApp(App):
     def on_vault_unlocked(self):
         self.main_screen.refresh_views()
         self.sm.current = 'main'
+        start_android_clipboard_monitor(self)
 
 def main():
     if not _single():
