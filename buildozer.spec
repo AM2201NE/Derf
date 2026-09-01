@@ -1,6 +1,6 @@
 [app]
 
-title = Derf PQ Messenger
+title = Derf
 package.name = derf
 package.domain = org.derf.messenger
 

@@ -1,14 +1,17 @@
-name: Build Android APK
+name: Build Derf Android APK
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
       - test-invitation
+      - android-build-512a1be
 
 jobs:
   build:
+    name: Build Derf APK
     runs-on: ubuntu-latest
 
     steps:
@@ -17,11 +20,14 @@ jobs:
 
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
           command: buildozer android debug
+          buildozer_version: stable
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: bin/*.apk
+          name: derf-android-apk
+          path: ${{ steps.buildozer.outputs.filename }}
+          if-no-files-found: error
