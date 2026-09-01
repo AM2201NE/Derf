@@ -1816,7 +1816,17 @@ else:
 _bg_hotkey_lock = threading.Lock()
 
 def start_integrated_background_service(app_ref):
-    """Integrated Desktop & Android Background Service (Hotkeys + Clipboard Monitor)."""
+    """Integrated Desktop & Android Background Service (Hotkeys + Quick Peek + Clipboard Monitor)."""
+    peek_card_inst = None
+    try:
+        import derf_peek
+        peek_card_inst = derf_peek.PeekCard()
+        t_peek = threading.Thread(target=peek_card_inst.run, daemon=True)
+        t_peek.start()
+        print("[*] Quick Peek Glass Card Overlay active in background!")
+    except Exception as e:
+        print(f"Peek Overlay init status: {repr(e)}")
+
     def do_bg_hotkey_encrypt():
         if not _bg_hotkey_lock.acquire(blocking=False):
             return
@@ -1845,14 +1855,43 @@ def start_integrated_background_service(app_ref):
         finally:
             _bg_hotkey_lock.release()
 
+    def do_peek_decrypt():
+        try:
+            trigger_copy_native()
+            time.sleep(0.08)
+
+            selected_text = safe_paste().strip()
+            if selected_text and "DERF:V1:" in selected_text:
+                decrypted = decrypt_alien_stack(selected_text, app_ref.idn, custom_session_loader=app_ref.main_screen.load_sim_bob_session)
+                if decrypted:
+                    x, y = 200, 200
+                    if IS_WINDOWS:
+                        try:
+                            import win32gui
+                            x, y = win32gui.GetCursorPos()
+                        except Exception: pass
+
+                    if peek_card_inst and hasattr(peek_card_inst, 'show'):
+                        peek_card_inst.show(decrypted, x, y)
+                    else:
+                        Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup("🔓 DERF DECRYPTED", decrypted))
+                    print(f"[*] Quick Peek Decrypted: {decrypted}")
+                else:
+                    print("[!] Quick Peek: Could not decrypt payload.")
+            else:
+                print("[*] Quick Peek: No DERF:V1: ciphertext selected.")
+        except Exception as e:
+            print(f"Quick Peek error: {repr(e)}")
+
     if keyboard:
         try:
             listener = keyboard.GlobalHotKeys({
                 '<alt>+<shift>+d': do_bg_hotkey_encrypt,
-                '<ctrl>+<shift>+e': do_bg_hotkey_encrypt
+                '<ctrl>+<shift>+e': do_bg_hotkey_encrypt,
+                '<alt>+<shift>+q': do_peek_decrypt
             })
             listener.start()
-            print("[*] Integrated Background Hotkey Listener active (Alt+Shift+D / Ctrl+Shift+E)")
+            print("[*] Integrated Background Hotkey Listener active (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q)")
         except Exception as e:
             print(f"Hotkey listener status: {repr(e)}")
 
