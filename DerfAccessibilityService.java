@@ -2,22 +2,27 @@ package org.derf.messenger;
 
 import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
-import android.util.Log;
+import java.util.List;
 
 public class DerfAccessibilityService extends AccessibilityService {
-    private static final String TAG = "DerfAccessibility";
-
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        int eventType = event.getEventType();
-        if (eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED ||
-            eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
-            Log.d(TAG, "Text selection event detected in Derf background layer.");
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
+            event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
+
+            List<CharSequence> texts = event.getText();
+            if (texts != null) {
+                for (CharSequence text : texts) {
+                    if (text != null && text.toString().contains("DERF:V1:")) {
+                        // Trigger Python callback via Pyjnius
+                        PythonServiceManager.onDerfTextDetected(text.toString());
+                        break;
+                    }
+                }
+            }
         }
     }
 
     @Override
-    public void onInterrupt() {
-        Log.d(TAG, "DerfAccessibilityService interrupted");
-    }
+    public void onInterrupt() {}
 }

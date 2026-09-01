@@ -3,7 +3,7 @@ Derf PQ+FS — post-quantum + forward-secret two-box messenger.
 Cross-platform Kivy GUI + Integrated Background Service + CLI selftest.
 Data stored in 'Derf' folder on Desktop (auto-created + migrated).
 """
-import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket, shutil, threading, re
+import os, sys, json, zstandard as zstd, zlib, glob, hmac, hashlib, time, struct, base64, binascii, socket, shutil, threading, re
 import pyperclip
 
 # --- CLI Arguments pre-check ---
@@ -74,6 +74,57 @@ def _data_dir():
 
 DATA_DIR = _data_dir()
 def P(n): return os.path.join(DATA_DIR, n)
+
+# ================= ALIEN COMPRESSION STACK =================
+DICT_PATH = P("derf_elite_dict.zdict")
+ALIEN_COMPRESSION_ENABLED = False
+
+zstd_compressor = None
+zstd_decompressor = None
+
+if os.path.exists(DICT_PATH):
+    try:
+        with open(DICT_PATH, "rb") as f:
+            elite_dict = zstd.ZstdCompressionDict(f.read())
+        # Level 19 is the perfect balance of speed and ultra-compression
+        zstd_compressor = zstd.ZstdCompressor(level=19, dict_data=elite_dict)
+        zstd_decompressor = zstd.ZstdDecompressor(dict_data=elite_dict)
+        ALIEN_COMPRESSION_ENABLED = True
+        print(f"[*] Derf Alien Stack Loaded. Dictionary size: {os.path.getsize(DICT_PATH) / 1024:.1f} KB")
+    except Exception as e:
+        print(f"[!] Failed to load dictionary: {repr(e)}")
+# ===========================================================
+
+def smart_split_text(text, max_chars=350):
+    """Splits text at spaces/newlines so words are never cut in half."""
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks = []
+    paragraphs = text.split("\n")
+    current_chunk = ""
+
+    for para in paragraphs:
+        if len(para) > max_chars:
+            words = para.split(" ")
+            for word in words:
+                if len(current_chunk) + len(word) + 1 > max_chars:
+                    if current_chunk:
+                        chunks.append(current_chunk.strip())
+                    current_chunk = word + " "
+                else:
+                    current_chunk += word + " "
+        else:
+            if len(current_chunk) + len(para) + 1 > max_chars:
+                chunks.append(current_chunk.strip())
+                current_chunk = para + "\n"
+            else:
+                current_chunk += para + "\n"
+
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+    return chunks
+
 
 DROP_DIR = P("lc_drop")
 os.makedirs(DROP_DIR, exist_ok=True)
@@ -514,6 +565,24 @@ def run_selftest():
     sc2 = safety_code(id_bundle(bob_idn), id_bundle(alice_idn))
     assert sc1 == sc2 and len(sc1) == 14, f"Safety code error: {sc1} vs {sc2}"
     print(f"   Safety code format verified: {sc1}")
+
+    print("[7/7] Alien Stack (Zstd/Zlib Compression, Z85 Encoding & Smart Chunking)...")
+    long_msg = "Derf Alien Stack test payload with repetitive phrases. " * 30
+    chunks = smart_split_text(long_msg, max_chars=150)
+    assert len(chunks) > 1, "Smart chunking failed to split long text!"
+
+    test_bytes = long_msg.encode('utf-8')
+    if ALIEN_COMPRESSION_ENABLED and zstd_compressor:
+        comp = zstd_compressor.compress(test_bytes)
+        decomp = zstd_decompressor.decompress(comp)
+        assert decomp == test_bytes, "Zstd dictionary decompression mismatch!"
+
+    comp_zlib = zlib.compress(test_bytes, 9)
+    assert zlib.decompress(comp_zlib) == test_bytes, "Zlib decompression mismatch!"
+
+    z85_enc = base64.b85encode(test_bytes).decode('ascii')
+    z85_dec = base64.b85decode(z85_enc)
+    assert z85_dec == test_bytes, "Z85 b85encode/b85decode mismatch!"
 
     print("\n[+] ALL SELFTESTS PASSED SUCCESSFULLY (100% OK).\n")
     return True
@@ -1068,7 +1137,7 @@ class MainScreen(Screen):
         peer = self.selected_peer
         cs = contacts_load()
         if not peer or peer not in cs or not os.path.exists(P(f"lc_session_{peer}.json")):
-            self.show_popup("Encrypt Error", "Please select a valid PAIRED contact from the sidebar first.")
+            self.show_popup("Encrypt Error", "Please select a valid PAIRED contact.")
             return
 
         pt = self.enc_input.text.strip()
@@ -1077,19 +1146,48 @@ class MainScreen(Screen):
             return
 
         try:
+            # 1. SMART CHUNKING
+            text_chunks = smart_split_text(pt, max_chars=350)
             sess = Session.load(peer)
             me_fp = id_fp(id_bundle(self.app_ref.idn))
             peer_fp = id_fp(cs[peer])
-            pkts = sess.encrypt(pt.encode('utf-8'), me_fp, peer_fp)
+            encrypted_outputs = []
+
+            for chunk in text_chunks:
+                chunk_bytes = chunk.encode('utf-8')
+
+                # 2. ALIEN COMPRESSION
+                is_compressed = False
+                if ALIEN_COMPRESSION_ENABLED and len(chunk_bytes) > 50:
+                    chunk_bytes = zstd_compressor.compress(chunk_bytes)
+                    is_compressed = True
+                elif len(chunk_bytes) > 50:
+                    chunk_bytes = zlib.compress(chunk_bytes, 9) # Fallback
+                    is_compressed = True
+
+                # 3. ENCRYPT
+                pkts = sess.encrypt(chunk_bytes, me_fp, peer_fp)
+                combined_binary = b"".join(pkts)
+
+                # 4. Z85 ENCODING (The Perfect Safe Base)
+                encoded_str = base64.b85encode(combined_binary).decode('ascii')
+
+                # 5. PREFIX
+                prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
+                encrypted_outputs.append(prefix + encoded_str)
+
             sess.save(peer)
 
-            out_b64 = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
-            self.enc_output.text = out_b64
-            safe_copy(out_b64)
+            # Join chunks with double newline for easy copy-pasting
+            final_out = "\n\n".join(encrypted_outputs)
+            self.enc_output.text = final_out
+            safe_copy(final_out)
             self.enc_input.text = ""
-            self.status_lbl.text = f"[*] Encrypted {len(pkts)} packet(s) for {peer} — Copied to clipboard."
+            self.status_lbl.text = f"[*] Encrypted {len(text_chunks)} chunk(s) for {peer}."
+
         except Exception as e:
             self.show_popup("Encryption Failed", str(e))
+
 
     def save_to_drop(self, *args):
         raw = self.enc_output.text.strip()
@@ -1107,48 +1205,74 @@ class MainScreen(Screen):
     def do_decrypt(self, *args):
         raw = self.dec_input.text.strip()
         if not raw:
-            self.show_popup("Decrypt Error", "Paste Base64 packet text first.")
+            self.show_popup("Decrypt Error", "Paste encrypted text first.")
             return
 
-        lines = []
-        for l in raw.splitlines():
-            s = l.strip()
-            if not s: continue
-            if s.startswith("DERF:V1:"): s = s[8:].strip()
-            if s: lines.append(s)
-        try:
-            pkts = [ub64(clean_b64(l)) for l in lines]
-        except Exception:
-            self.show_popup("Decrypt Error", "Invalid Base64 ciphertext packet format.")
-            return
+        # Split by double newlines to separate smart chunks
+        raw_chunks = re.split(r"\n\s*\n", raw)
+        if len(raw_chunks) == 1:
+            raw_chunks = raw.split("\n")
 
         cs = contacts_load()
         me_fp = id_fp(id_bundle(self.app_ref.idn))
-
         paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-        for peer in paired:
-            sess = Session.load(peer)
-            peer_fp = id_fp(cs[peer])
-            msgs = []
-            got = 0
-            for p in pkts:
+        final_decrypted_texts = []
+
+        for raw_block in raw_chunks:
+            raw_block = raw_block.strip()
+            if not raw_block: continue
+
+            # Handle Prefix
+            is_compressed = False
+            if raw_block.startswith("DERF:V1:C:"):
+                raw_block = raw_block[10:]; is_compressed = True
+            elif raw_block.startswith("DERF:V1:R:"):
+                raw_block = raw_block[10:]
+            elif raw_block.startswith("DERF:V1:"):
+                raw_block = raw_block[8:]
+
+            # 1. Z85 DECODE
+            try:
+                clean_block = raw_block.replace(" ", "").replace("\n", "")
+                combined_binary = base64.b85decode(clean_block)
+                pkt_size = PACKET
+                pkts = [combined_binary[i:i + pkt_size] for i in range(0, len(combined_binary), pkt_size)]
+            except Exception:
+                # Fallback to standard Base64 for legacy messages
                 try:
-                    out = feed(sess, p, me_fp, peer_fp, self.buffers)
-                    if out:
-                        msgs.append(out.decode('utf-8'))
-                        got += 1
+                    combined_binary = base64.b64decode(raw_block)
+                    pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
                 except Exception:
-                    pass
-            if got or len(self.buffers) > 0:
-                sess.save(peer)
-            if got:
-                self.dec_output.text = "\n".join(msgs)
-                self.status_lbl.text = f"[*] Successfully decrypted payload from {peer}!"
-                return
+                    self.show_popup("Decode Error", "Invalid ciphertext format.")
+                    return
 
-        self.show_popup("Decrypt Failed", "Could not decrypt packet (wrong key, stale >7min, or tampered).")
+            # 2. DECRYPT & DECOMPRESS
+            for peer in paired:
+                sess = Session.load(peer)
+                peer_fp = id_fp(cs[peer])
 
-    # --- VIEW 2: CONTACTS & PAIRING WIZARD ---
+                for p in pkts:
+                    try:
+                        out = feed(sess, p, me_fp, peer_fp, self.buffers)
+                        if out:
+                            if is_compressed:
+                                try:
+                                    if ALIEN_COMPRESSION_ENABLED:
+                                        out = zstd_decompressor.decompress(out)
+                                    else:
+                                        out = zlib.decompress(out)
+                                except Exception:
+                                    pass # Fallback if decompression fails
+                            final_decrypted_texts.append(out.decode('utf-8', errors='replace'))
+                            sess.save(peer)
+                    except Exception: pass
+
+        if final_decrypted_texts:
+            self.dec_output.text = " ".join(final_decrypted_texts)
+            self.status_lbl.text = f"[*] Successfully decrypted & reassembled!"
+        else:
+            self.show_popup("Decrypt Failed", "Could not decrypt (wrong key, stale, or tampered).")
+
 
     # --- VIEW 2.5: LIVE SIMULATOR & TEST BENCH ---
     def build_simulator_view(self):
@@ -1802,12 +1926,46 @@ class DerfApp(App):
 
         self.sm.add_widget(self.vault_screen)
         self.sm.add_widget(self.main_screen)
+
+        # Start background clipboard monitor for iOS/Android
+        Clock.schedule_interval(self.check_clipboard_background, 1.0) # Check every 1 second
         return self.sm
+
+    def check_clipboard_background(self, dt):
+        try:
+            from kivy.core.clipboard import Clipboard
+            current_clip = Clipboard.paste()
+            if current_clip and "DERF:V1:" in current_clip and (not hasattr(self, '_last_clip') or self._last_clip != current_clip):
+                self._last_clip = current_clip
+                print("[*] Derf ciphertext detected in clipboard!")
+        except Exception:
+            pass
 
     def on_vault_unlocked(self):
         self.main_screen.refresh_views()
         self.sm.current = 'main'
         start_integrated_background_service(self)
+
+try:
+    from jnius import autoclass, cast
+    from android import activity
+
+    Context = autoclass('android.content.Context')
+    Intent = autoclass('android.content.Intent')
+    ClipboardManager = autoclass('android.content.ClipboardManager')
+
+    class PythonServiceManager:
+        @staticmethod
+        @android.jnius.java_method('(Ljava/lang/String;)V')
+        def onDerfTextDetected(text):
+            # Schedule on main thread to update Kivy UI
+            Clock.schedule_once(lambda dt: handle_android_overlay(text), 0)
+
+    def handle_android_overlay(text):
+        print(f"Detected Derf text on Android: {text}")
+
+except ImportError:
+    pass # Not on Android, ignore
 
 def main():
     if not _single():
@@ -1815,5 +1973,5 @@ def main():
         sys.exit(1)
     DerfApp().run()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,8 +1,11 @@
-cryptography>=41.0.0
-kyber-py>=1.2.0
 kivy>=2.3.0
-pyperclip>=1.8.2
+cryptography>=41.0.0
+kyber-py>=0.1.0
 plyer>=2.1.0
-pystray>=0.19.5
 pynput>=1.7.6
+pyperclip>=1.8.2
+pystray>=0.19.5
 Pillow>=10.0.0
+zstandard>=0.22.0
+keyboard>=0.13.5
+pywin32>=306; sys_platform == 'win32'
