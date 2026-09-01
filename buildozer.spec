@@ -1,4 +1,4 @@
-[app]
+﻿[app]
 
 title = Derf
 package.name = derf
@@ -18,7 +18,7 @@ fullscreen = 0
 android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS
 android.api = 33
 android.minapi = 23
-android.sdk = 33
+# android.sdk is deprecated
 android.ndk = 25b
 android.archs = arm64-v8a, armeabi-v7a
 
