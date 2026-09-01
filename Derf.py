@@ -465,6 +465,23 @@ def safety_code(a, b):
     h = hashlib.sha256(b"SAS" + b"".join(sorted((a, b)))).digest()[:6]
     return "-".join(str(int.from_bytes(h[i:i+2], "big") % 10000).zfill(4) for i in (0, 2, 4))
 
+def load_sim_bob_session_standalone():
+    p = P("lc_sim_bob_session.json")
+    if not os.path.exists(p): return None, None
+    try:
+        d = vload(p)
+        bob_sess = Session(
+            sid=ub64(d["sid"]), root=b"", role=d["role"],
+            sck=ub64(d["sck"]), rck=ub64(d["rck"]),
+            sn=d["sn"], rn=d["rn"],
+            hsend=ub64(d["hsend"]), hrecv=ub64(d["hrecv"]),
+            skipped={}
+        )
+        bob_idn = norm_identity(d["bob_idn"])
+        return bob_sess, bob_idn
+    except Exception:
+        return None, None
+
 def contacts_load():
     d = {}
     if os.path.exists(P("lc_contacts.txt")):
