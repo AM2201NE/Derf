@@ -27,10 +27,11 @@ def safe_clip_paste():
         pass
     return _BG_CLIPBOARD
 
-# Import core crypto logic from Derf without starting Kivy GUI
+# Import core crypto logic & Alien Stack from Derf without starting Kivy GUI
 from Derf import (
     _load_pq, contacts_load, vload, vsave, P, DATA_DIR, Session,
-    id_fp, id_bundle, b64, ub64, clean_b64, feed, VAULT, derive_vault
+    id_fp, id_bundle, b64, ub64, clean_b64, feed, VAULT, derive_vault,
+    norm_identity, encrypt_alien_stack, decrypt_alien_stack
 )
 
 try:
@@ -111,7 +112,6 @@ else:
 
 # Global state for background service
 ACTIVE_PEER = None
-BUFFERS = {}
 
 def load_background_vault():
     global VAULT
@@ -139,11 +139,9 @@ def do_hotkey_encrypt():
     try:
         load_background_vault()
 
-        # Step 1: Force instant release of physical Alt/Shift modifiers and trigger Ctrl+C
         trigger_copy_native()
         time.sleep(0.04)
 
-        # Step 2: Read highlighted text
         selected_text = safe_clip_paste().strip()
         if not selected_text or selected_text.startswith("DERF:V1:"):
             return
@@ -154,21 +152,12 @@ def do_hotkey_encrypt():
                 notification.notify(title="Derf Background", message="No paired contacts found for encryption.")
             return
 
-        cs = contacts_load()
-        sess = Session.load(peer)
-
         raw_idn = vload(P("lc_identity.json"))
-        me_pk = ub64(raw_idn["pq_pk"]) if isinstance(raw_idn["pq_pk"], str) else raw_idn["pq_pk"]
-        me_fp = id_fp(me_pk)
-        peer_fp = id_fp(cs[peer])
+        idn = norm_identity(raw_idn)
 
-        pkts = sess.encrypt(selected_text.encode('utf-8'), me_fp, peer_fp)
-        sess.save(peer)
-
-        cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
+        cipher_text = encrypt_alien_stack(selected_text, peer, idn)
         safe_clip_copy(cipher_text)
 
-        # Step 3: Force instant Ctrl+V paste replacement
         time.sleep(0.02)
         trigger_paste_native()
 
@@ -185,47 +174,24 @@ def do_hotkey_encrypt():
 
 def monitor_clipboard_loop():
     last_clip = ""
-    pattern = re.compile(r"^DERF:V1:[A-Za-z0-9+/=\n\r\s]{50,}$")
     while True:
         try:
-            time.sleep(0.15)
+            time.sleep(0.3)
             load_background_vault()
             clip_text = safe_clip_paste().strip()
-            if clip_text and clip_text != last_clip and pattern.match(clip_text):
+            if clip_text and clip_text != last_clip and "DERF:V1:" in clip_text:
                 last_clip = clip_text
-                raw = clip_text[8:].strip()
-                lines = [l.strip() for l in raw.splitlines() if l.strip()]
-                pkts = [ub64(clean_b64(l)) for l in lines]
-
-                cs = contacts_load()
                 raw_idn = vload(P("lc_identity.json"))
-                me_pk = ub64(raw_idn["pq_pk"]) if isinstance(raw_idn["pq_pk"], str) else raw_idn["pq_pk"]
-                me_fp = id_fp(me_pk)
+                idn = norm_identity(raw_idn)
 
-                paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-                for peer in paired:
-                    sess = Session.load(peer)
-                    peer_fp = id_fp(cs[peer])
-                    msgs = []
-                    got = 0
-                    for p in pkts:
-                        try:
-                            out = feed(sess, p, me_fp, peer_fp, BUFFERS)
-                            if out:
-                                msgs.append(out.decode('utf-8'))
-                                got += 1
-                        except Exception:
-                            pass
-                    if got:
-                        sess.save(peer)
-                        dec_msg = "\n".join(msgs)
-                        if notification:
-                            notification.notify(
-                                title=f"Derf Decrypted ({peer})",
-                                message=dec_msg[:200]
-                            )
-                        print(f"[DERF BG DECRYPTED] {peer}: {dec_msg}")
-                        break
+                dec_msg = decrypt_alien_stack(clip_text, idn)
+                if dec_msg:
+                    if notification:
+                        notification.notify(
+                            title="Derf Decrypted",
+                            message=dec_msg[:200]
+                        )
+                    print(f"[DERF BG DECRYPTED] {dec_msg}")
         except Exception:
             pass
 

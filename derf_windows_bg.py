@@ -2,17 +2,14 @@
 import os
 import sys
 import time
-import base64
 import pyperclip
 
 # Add the parent directory to path to import derf logic
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import ONLY what we need to avoid launching the Kivy UI
+# Import Alien Stack decryption logic from Derf
 from Derf import (
-    P, DATA_DIR, PACKET, ALIEN_COMPRESSION_ENABLED,
-    zstd_decompressor, zlib, Session, contacts_load,
-    id_bundle, id_fp, feed, ub64, clean_b64, b64
+    P, vload, norm_identity, decrypt_alien_stack, Session, ub64
 )
 
 IS_WIN32 = (sys.platform == "win32")
@@ -77,49 +74,31 @@ if keyboard:
     except Exception:
         pass
 
-def decrypt_text(raw_block):
-    """Minimal decryption logic for the background script"""
+def load_sim_bob_session_standalone():
+    p = P("lc_sim_bob_session.json")
+    if not os.path.exists(p): return None, None
     try:
-        is_compressed = False
-        if raw_block.startswith("DERF:V1:C:"):
-            raw_block = raw_block[10:]; is_compressed = True
-        elif raw_block.startswith("DERF:V1:R:"):
-            raw_block = raw_block[10:]
-        elif raw_block.startswith("DERF:V1:"):
-            raw_block = raw_block[8:]
+        d = vload(p)
+        bob_sess = Session(
+            sid=ub64(d["sid"]), root=b"", role=d["role"],
+            sck=ub64(d["sck"]), rck=ub64(d["rck"]),
+            sn=d["sn"], rn=d["rn"],
+            hsend=ub64(d["hsend"]), hrecv=ub64(d["hrecv"]),
+            skipped={}
+        )
+        bob_idn = norm_identity(d["bob_idn"])
+        return bob_sess, bob_idn
+    except Exception:
+        return None, None
 
-        clean_block = raw_block.replace(' ', '').replace('\n', '')
-        try:
-            combined_binary = base64.b85decode(clean_block)
-        except Exception:
-            combined_binary = base64.b64decode(clean_block)
-
-        pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
-
-        cs = contacts_load()
-        me_fp = id_fp(id_bundle({"pq_pk": b"dummy"})) # Simplified for background check
-
-        for peer, pub_bytes in cs.items():
-            if os.path.exists(P(f"lc_session_{peer}.json")):
-                sess = Session.load(peer)
-                for p in pkts:
-                    try:
-                        out = feed(sess, p, me_fp, id_fp(pub_bytes), {})
-                        if out:
-                            if is_compressed:
-                                try:
-                                    if ALIEN_COMPRESSION_ENABLED and zstd_decompressor:
-                                        out = zstd_decompressor.decompress(out)
-                                    else:
-                                        out = zlib.decompress(out)
-                                except Exception:
-                                    pass
-                            return out.decode('utf-8', errors='replace')
-                    except Exception:
-                        pass
+def decrypt_text(raw_text):
+    """Minimal decryption logic for the background script using Alien Stack"""
+    try:
+        raw_idn = vload(P("lc_identity.json"))
+        idn = norm_identity(raw_idn)
+        return decrypt_alien_stack(raw_text, idn, custom_session_loader=load_sim_bob_session_standalone)
     except Exception:
         return None
-    return None
 
 def monitor_clipboard():
     last_text = ""

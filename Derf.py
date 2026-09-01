@@ -125,6 +125,119 @@ def smart_split_text(text, max_chars=350):
         chunks.append(current_chunk.strip())
     return chunks
 
+def encrypt_alien_stack(text, peer, idn_data):
+    cs = contacts_load()
+    if not peer or peer not in cs or not os.path.exists(P(f"lc_session_{peer}.json")):
+        raise ValueError("Please select a valid PAIRED contact.")
+
+    text_chunks = smart_split_text(text, max_chars=350)
+    sess = Session.load(peer)
+    me_pk = ub64(idn_data["pq_pk"]) if isinstance(idn_data["pq_pk"], str) else idn_data["pq_pk"]
+    me_fp = id_fp(me_pk)
+    peer_fp = id_fp(cs[peer])
+    encrypted_outputs = []
+
+    for chunk in text_chunks:
+        chunk_bytes = chunk.encode('utf-8')
+        is_compressed = False
+
+        if ALIEN_COMPRESSION_ENABLED and zstd_compressor and len(chunk_bytes) > 50:
+            chunk_bytes = zstd_compressor.compress(chunk_bytes)
+            is_compressed = True
+        elif len(chunk_bytes) > 50:
+            chunk_bytes = zlib.compress(chunk_bytes, 9)
+            is_compressed = True
+
+        pkts = sess.encrypt(chunk_bytes, me_fp, peer_fp)
+        combined_binary = b"".join(pkts)
+        encoded_str = base64.b85encode(combined_binary).decode('ascii')
+
+        prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
+        encrypted_outputs.append(prefix + encoded_str)
+
+    sess.save(peer)
+    return "\n\n".join(encrypted_outputs)
+
+def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
+    if not raw_text: return None
+
+    raw_chunks = re.split(r'\n\s*\n', raw_text.strip())
+    if len(raw_chunks) == 1:
+        raw_chunks = raw_text.strip().split('\n')
+
+    cs = contacts_load()
+    me_pk = ub64(idn_data["pq_pk"]) if isinstance(idn_data["pq_pk"], str) else idn_data["pq_pk"]
+    me_fp = id_fp(me_pk)
+    final_decrypted_texts = []
+
+    for raw_block in raw_chunks:
+        raw_block = raw_block.strip()
+        if not raw_block: continue
+
+        is_compressed = False
+        if raw_block.startswith("DERF:V1:C:"):
+            raw_block = raw_block[10:]; is_compressed = True
+        elif raw_block.startswith("DERF:V1:R:"):
+            raw_block = raw_block[10:]
+        elif raw_block.startswith("DERF:V1:"):
+            raw_block = raw_block[8:]
+
+        try:
+            clean_block = raw_block.replace(' ', '').replace('\n', '')
+            combined_binary = base64.b85decode(clean_block)
+            pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
+        except Exception:
+            try:
+                combined_binary = base64.b64decode(raw_block)
+                pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
+            except Exception:
+                continue
+
+        if custom_session_loader:
+            c_sess, c_idn = custom_session_loader()
+            if c_sess and c_idn:
+                peer_fp = id_fp(c_idn["pq_pk"])
+                buf = {}
+                for p in pkts:
+                    try:
+                        out = feed(c_sess, p, me_fp, peer_fp, buf)
+                        if out:
+                            if is_compressed:
+                                try:
+                                    if ALIEN_COMPRESSION_ENABLED and zstd_decompressor:
+                                        out = zstd_decompressor.decompress(out)
+                                    else:
+                                        out = zlib.decompress(out)
+                                except Exception: pass
+                            final_decrypted_texts.append(out.decode('utf-8', errors='replace'))
+                    except Exception: pass
+
+        paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
+        buf = {}
+        for peer in paired:
+            sess = Session.load(peer)
+            peer_fp = id_fp(cs[peer])
+            got = False
+            for p in pkts:
+                try:
+                    out = feed(sess, p, me_fp, peer_fp, buf)
+                    if out:
+                        if is_compressed:
+                            try:
+                                if ALIEN_COMPRESSION_ENABLED and zstd_decompressor:
+                                    out = zstd_decompressor.decompress(out)
+                                else:
+                                    out = zlib.decompress(out)
+                            except Exception: pass
+                        final_decrypted_texts.append(out.decode('utf-8', errors='replace'))
+                        sess.save(peer)
+                        got = True
+                except Exception: pass
+            if got: break
+
+    return " ".join(final_decrypted_texts) if final_decrypted_texts else None
+
+
 
 DROP_DIR = P("lc_drop")
 os.makedirs(DROP_DIR, exist_ok=True)
@@ -1120,14 +1233,26 @@ class MainScreen(Screen):
             alice_pk = id_bundle(self.app_ref.idn)
 
             msg = f"Hello Alice! Received your encrypted message at {time.strftime('%H:%M:%S')}. Double ratchet & ML-KEM-768 verified!"
-            pkts = bob_sess.encrypt(msg.encode('utf-8'), id_fp(bob_idn["pq_pk"]), id_fp(alice_pk))
+            msg_bytes = msg.encode('utf-8')
+            is_compressed = False
+            if ALIEN_COMPRESSION_ENABLED and zstd_compressor and len(msg_bytes) > 50:
+                msg_bytes = zstd_compressor.compress(msg_bytes)
+                is_compressed = True
+            elif len(msg_bytes) > 50:
+                msg_bytes = zlib.compress(msg_bytes, 9)
+                is_compressed = True
+
+            pkts = bob_sess.encrypt(msg_bytes, id_fp(bob_idn["pq_pk"]), id_fp(alice_pk))
 
             d["sck"] = b64(bob_sess.sck); d["sn"] = bob_sess.sn
             vsave(sim_path, d)
 
-            # DERF:V1: Wrapper Prefix on Bob's simulated reply
-            bob_b64 = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
-            self.dec_input.text = bob_b64
+            combined_binary = b"".join(pkts)
+            encoded_str = base64.b85encode(combined_binary).decode('ascii')
+            prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
+            bob_cipher = prefix + encoded_str
+
+            self.dec_input.text = bob_cipher
             self.do_decrypt()
             self.show_popup("Simulated Reply Received", f"Received & decrypted live DERF:V1: packet reply from 'Bob Test'!")
         except Exception as e:
@@ -1135,56 +1260,17 @@ class MainScreen(Screen):
 
     def do_encrypt(self, *args):
         peer = self.selected_peer
-        cs = contacts_load()
-        if not peer or peer not in cs or not os.path.exists(P(f"lc_session_{peer}.json")):
-            self.show_popup("Encrypt Error", "Please select a valid PAIRED contact.")
-            return
-
         pt = self.enc_input.text.strip()
         if not pt:
             self.show_popup("Encrypt Error", "Message payload cannot be empty.")
             return
 
         try:
-            # 1. SMART CHUNKING
-            text_chunks = smart_split_text(pt, max_chars=350)
-            sess = Session.load(peer)
-            me_fp = id_fp(id_bundle(self.app_ref.idn))
-            peer_fp = id_fp(cs[peer])
-            encrypted_outputs = []
-
-            for chunk in text_chunks:
-                chunk_bytes = chunk.encode('utf-8')
-
-                # 2. ALIEN COMPRESSION
-                is_compressed = False
-                if ALIEN_COMPRESSION_ENABLED and len(chunk_bytes) > 50:
-                    chunk_bytes = zstd_compressor.compress(chunk_bytes)
-                    is_compressed = True
-                elif len(chunk_bytes) > 50:
-                    chunk_bytes = zlib.compress(chunk_bytes, 9) # Fallback
-                    is_compressed = True
-
-                # 3. ENCRYPT
-                pkts = sess.encrypt(chunk_bytes, me_fp, peer_fp)
-                combined_binary = b"".join(pkts)
-
-                # 4. Z85 ENCODING (The Perfect Safe Base)
-                encoded_str = base64.b85encode(combined_binary).decode('ascii')
-
-                # 5. PREFIX
-                prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
-                encrypted_outputs.append(prefix + encoded_str)
-
-            sess.save(peer)
-
-            # Join chunks with double newline for easy copy-pasting
-            final_out = "\n\n".join(encrypted_outputs)
+            final_out = encrypt_alien_stack(pt, peer, self.app_ref.idn)
             self.enc_output.text = final_out
             safe_copy(final_out)
             self.enc_input.text = ""
-            self.status_lbl.text = f"[*] Encrypted {len(text_chunks)} chunk(s) for {peer}."
-
+            self.status_lbl.text = f"[*] Encrypted & encoded message for {peer}."
         except Exception as e:
             self.show_popup("Encryption Failed", str(e))
 
@@ -1208,68 +1294,10 @@ class MainScreen(Screen):
             self.show_popup("Decrypt Error", "Paste encrypted text first.")
             return
 
-        # Split by double newlines to separate smart chunks
-        raw_chunks = re.split(r"\n\s*\n", raw)
-        if len(raw_chunks) == 1:
-            raw_chunks = raw.split("\n")
-
-        cs = contacts_load()
-        me_fp = id_fp(id_bundle(self.app_ref.idn))
-        paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-        final_decrypted_texts = []
-
-        for raw_block in raw_chunks:
-            raw_block = raw_block.strip()
-            if not raw_block: continue
-
-            # Handle Prefix
-            is_compressed = False
-            if raw_block.startswith("DERF:V1:C:"):
-                raw_block = raw_block[10:]; is_compressed = True
-            elif raw_block.startswith("DERF:V1:R:"):
-                raw_block = raw_block[10:]
-            elif raw_block.startswith("DERF:V1:"):
-                raw_block = raw_block[8:]
-
-            # 1. Z85 DECODE
-            try:
-                clean_block = raw_block.replace(" ", "").replace("\n", "")
-                combined_binary = base64.b85decode(clean_block)
-                pkt_size = PACKET
-                pkts = [combined_binary[i:i + pkt_size] for i in range(0, len(combined_binary), pkt_size)]
-            except Exception:
-                # Fallback to standard Base64 for legacy messages
-                try:
-                    combined_binary = base64.b64decode(raw_block)
-                    pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
-                except Exception:
-                    self.show_popup("Decode Error", "Invalid ciphertext format.")
-                    return
-
-            # 2. DECRYPT & DECOMPRESS
-            for peer in paired:
-                sess = Session.load(peer)
-                peer_fp = id_fp(cs[peer])
-
-                for p in pkts:
-                    try:
-                        out = feed(sess, p, me_fp, peer_fp, self.buffers)
-                        if out:
-                            if is_compressed:
-                                try:
-                                    if ALIEN_COMPRESSION_ENABLED:
-                                        out = zstd_decompressor.decompress(out)
-                                    else:
-                                        out = zlib.decompress(out)
-                                except Exception:
-                                    pass # Fallback if decompression fails
-                            final_decrypted_texts.append(out.decode('utf-8', errors='replace'))
-                            sess.save(peer)
-                    except Exception: pass
-
-        if final_decrypted_texts:
-            self.dec_output.text = " ".join(final_decrypted_texts)
-            self.status_lbl.text = f"[*] Successfully decrypted & reassembled!"
+        decrypted = decrypt_alien_stack(raw, self.app_ref.idn, custom_session_loader=self.load_sim_bob_session)
+        if decrypted:
+            self.dec_output.text = decrypted
+            self.status_lbl.text = "[*] Successfully decrypted & reassembled message!"
         else:
             self.show_popup("Decrypt Failed", "Could not decrypt (wrong key, stale, or tampered).")
 
@@ -1347,16 +1375,9 @@ class MainScreen(Screen):
                 self.auto_pair_sim_peer()
                 peer = "Bob Test"
 
-            cs = contacts_load()
-            sess = Session.load(peer)
             idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
-            me_fp = id_fp(ub64(idn["pq_pk"]) if isinstance(idn["pq_pk"], str) else idn["pq_pk"])
-            peer_fp = id_fp(cs[peer])
+            cipher_text = encrypt_alien_stack(inp, peer, idn)
 
-            pkts = sess.encrypt(inp.encode('utf-8'), me_fp, peer_fp)
-            sess.save(peer)
-
-            cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
             safe_copy(cipher_text)
             self.sim_dec_input.text = cipher_text
             self.sim_log(f"[SUCCESS] Hotkey Encrypt simulated for {peer}! Replaced clipboard with DERF:V1: ciphertext.")
@@ -1366,53 +1387,15 @@ class MainScreen(Screen):
     def run_sim_clipboard_decrypt(self, *args):
         try:
             cip = self.sim_dec_input.text.strip()
-            if not cip or not cip.startswith("DERF:V1:"):
+            if not cip or "DERF:V1:" not in cip:
                 self.sim_log("Error: Input is not a valid DERF:V1: ciphertext.")
                 return
 
-            raw = cip[8:].strip()
-            lines = [l.strip() for l in raw.splitlines() if l.strip()]
-            pkts = [ub64(clean_b64(l)) for l in lines]
-
-            cs = contacts_load()
             idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
-            me_fp = id_fp(ub64(idn["pq_pk"]) if isinstance(idn["pq_pk"], str) else idn["pq_pk"])
-
-            # Check simulated Bob session first
-            bob_sess, bob_idn = self.load_sim_bob_session()
-            got = False
-            if bob_sess and bob_idn:
-                peer_fp = id_fp(bob_idn["pq_pk"])
-                msgs = []
-                for p in pkts:
-                    try:
-                        out = feed(bob_sess, p, me_fp, peer_fp, self.buffers)
-                        if out: msgs.append(out.decode('utf-8'))
-                    except Exception: pass
-                if msgs:
-                    dec_msg = "\n".join(msgs)
-                    self.sim_log(f"[SUCCESS] Simulated Bob received & decrypted message from Alice: '{dec_msg}'")
-                    got = True
-
-            if not got:
-                paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-                for peer in paired:
-                    sess = Session.load(peer)
-                    peer_fp = id_fp(cs[peer])
-                    msgs = []
-                    for p in pkts:
-                        try:
-                            out = feed(sess, p, me_fp, peer_fp, self.buffers)
-                            if out: msgs.append(out.decode('utf-8'))
-                        except Exception: pass
-                    if msgs:
-                        sess.save(peer)
-                        dec_msg = "\n".join(msgs)
-                        self.sim_log(f"[SUCCESS] Clipboard Auto-Decrypt triggered for {peer}! Decrypted Message: '{dec_msg}'")
-                        got = True
-                        break
-
-            if not got:
+            dec_msg = decrypt_alien_stack(cip, idn, custom_session_loader=self.load_sim_bob_session)
+            if dec_msg:
+                self.sim_log(f"[SUCCESS] Clipboard Auto-Decrypt triggered! Decrypted Message: '{dec_msg}'")
+            else:
                 self.sim_log("[WARN] Could not decrypt ciphertext with any active session.")
         except Exception as e:
             self.sim_log(f"[ERROR] Clipboard decrypt simulation failed: {repr(e)}")
@@ -1832,14 +1815,7 @@ def start_integrated_background_service(app_ref):
             peer = app_ref.main_screen.selected_peer or (list(cs.keys())[0] if cs else None)
             if not peer or not os.path.exists(P(f"lc_session_{peer}.json")): return
 
-            sess = Session.load(peer)
-            me_fp = id_fp(id_bundle(app_ref.idn))
-            peer_fp = id_fp(cs[peer])
-
-            pkts = sess.encrypt(selected_text.encode('utf-8'), me_fp, peer_fp)
-            sess.save(peer)
-
-            cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
+            cipher_text = encrypt_alien_stack(selected_text, peer, app_ref.idn)
             safe_copy(cipher_text)
 
             time.sleep(0.02)
@@ -1852,9 +1828,6 @@ def start_integrated_background_service(app_ref):
         finally:
             _bg_hotkey_lock.release()
 
-
-
-    # Register Global Hotkeys via pynput without Admin
     if keyboard:
         try:
             listener = keyboard.GlobalHotKeys({
@@ -1866,46 +1839,26 @@ def start_integrated_background_service(app_ref):
         except Exception as e:
             print(f"Hotkey listener status: {repr(e)}")
 
-    # Clipboard Monitor Loop
     def bg_clip_monitor():
         last_clip = ""
-        pattern = re.compile(r"^DERF:V1:[A-Za-z0-9+/=\n\r\s]{50,}$")
         while True:
             try:
-                time.sleep(0.5)
+                time.sleep(0.4)
                 clip_text = safe_paste().strip()
-                if clip_text and clip_text != last_clip and pattern.match(clip_text):
+                if clip_text and clip_text != last_clip and "DERF:V1:" in clip_text:
                     last_clip = clip_text
-                    raw = clip_text[8:].strip()
-                    lines = [l.strip() for l in raw.splitlines() if l.strip()]
-                    pkts = [ub64(clean_b64(l)) for l in lines]
-
-                    cs = contacts_load()
                     if not hasattr(app_ref, 'idn') or not app_ref.idn: continue
-                    me_fp = id_fp(id_bundle(app_ref.idn))
-
-                    paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-                    for peer in paired:
-                        sess = Session.load(peer)
-                        peer_fp = id_fp(cs[peer])
-                        msgs = []
-                        got = 0
-                        for p in pkts:
-                            try:
-                                out = feed(sess, p, me_fp, peer_fp, app_ref.main_screen.buffers)
-                                if out: msgs.append(out.decode('utf-8')); got += 1
-                            except Exception: pass
-                        if got:
-                            sess.save(peer)
-                            dec_msg = "\n".join(msgs)
-                            Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup(f"Decrypted Message ({peer})", dec_msg))
-                            if notification:
-                                notification.notify(title=f"Derf Decrypted ({peer})", message=dec_msg[:200])
-                            break
-            except Exception: pass
+                    dec_msg = decrypt_alien_stack(clip_text, app_ref.idn, custom_session_loader=app_ref.main_screen.load_sim_bob_session)
+                    if dec_msg:
+                        Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup("Decrypted Message", dec_msg))
+                        if notification:
+                            notification.notify(title="Derf Decrypted", message=dec_msg[:200])
+            except Exception:
+                pass
 
     t_clip = threading.Thread(target=bg_clip_monitor, daemon=True)
     t_clip.start()
+
 
 class DerfApp(App):
     def build(self):
