@@ -17,28 +17,78 @@ jobs:
     container:
       image: ghcr.io/kivy/buildozer:latest
 
+    env:
+      ANDROID_HOME: /github/home/.buildozer/android/platform/android-sdk
+      ANDROID_SDK_ROOT: /github/home/.buildozer/android/platform/android-sdk
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare Android SDK licenses
+      - name: Prepare Android SDK
+        shell: bash
         run: |
-          mkdir -p /github/home/.buildozer/android/platform/android-sdk/licenses
+          set -e
 
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" \
-            > /github/home/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          SDK="$ANDROID_HOME"
 
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e6" \
-            >> /github/home/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          mkdir -p "$SDK/cmdline-tools"
 
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" \
-            >> /github/home/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          curl -L \
+            -o /tmp/cmdline-tools.zip \
+            "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
+
+          unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
+
+          rm -rf "$SDK/cmdline-tools/latest"
+
+          mv "$SDK/cmdline-tools/cmdline-tools" \
+             "$SDK/cmdline-tools/latest"
+
+          export PATH="$SDK/cmdline-tools/latest/bin:$SDK/platform-tools:$SDK/tools/bin:$PATH"
+
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "$SDK/tools/bin" >> "$GITHUB_PATH"
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
+            "build-tools;35.0.0" \
+            "build-tools;37.0.0"
+
+          mkdir -p "$SDK/tools"
+
+          ln -sf \
+            "$SDK/cmdline-tools/latest/bin" \
+            "$SDK/tools/bin"
+
+          echo "SDK preparation complete."
+
+      - name: Verify Android SDK
+        shell: bash
+        run: |
+          set -e
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+          "$ANDROID_HOME/tools/bin/sdkmanager" --version
+
+          find "$ANDROID_HOME/build-tools" \
+            -name aidl \
+            -type f \
+            -print
 
       - name: Build APK
+        shell: bash
         run: |
           buildozer android debug
 
       - name: Find APK
+        shell: bash
         run: |
           echo "=== APK files ==="
           find bin -type f -name "*.apk" -print
