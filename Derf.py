@@ -1,9 +1,10 @@
 """
 Derf PQ+FS — post-quantum + forward-secret two-box messenger.
-Cross-platform Kivy GUI + CLI selftest suite.
+Cross-platform Kivy GUI + Integrated Background Service + CLI selftest.
 Data stored in 'Derf' folder on Desktop (auto-created + migrated).
 """
-import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket, shutil
+import os, sys, json, glob, hmac, hashlib, time, struct, base64, binascii, socket, shutil, threading, re
+import pyperclip
 
 # --- CLI Arguments pre-check ---
 FRESH = 420.0
@@ -28,6 +29,19 @@ try:
     import kyber_py.ml_kem  # noqa: F401
 except Exception:
     pass
+
+try:
+    from plyer import notification
+except Exception:
+    notification = None
+
+try:
+    from pynput import keyboard
+    from pynput.keyboard import Controller, Key
+    kb_controller = Controller()
+except Exception:
+    keyboard = None
+    kb_controller = None
 
 APP_NAME = "Derf"
 
@@ -86,8 +100,8 @@ class _KyberPyBackend:
             try:
                 c = getattr(__import__(mn, fromlist=[cn]), cn); a, b = c.keygen()
                 if sorted((len(a), len(b))) != sorted((EK, DK)): continue
-                x, y = c.encaps(a if len(a) == EK else b)
-                if sorted((len(x), len(y))) != sorted((CT, SS)): continue
+                res = c.encaps(a if len(a) == EK else b)
+                if sorted((len(res[0]), len(res[1]))) != sorted((CT, SS)): continue
                 self._k = c; break
             except Exception: continue
         if self._k is None: raise ImportError("no ML-KEM-768")
@@ -96,11 +110,11 @@ class _KyberPyBackend:
         return (a, b) if len(a) == EK else (b, a)
     def encaps(self, pk):
         if len(pk) != EK: raise ValueError(f"encaps needs public key ({EK}B), got {len(pk)}B")
-        x, y = self._k.encaps(pk)
-        return (x, y) if len(x) == CT else (y, x)
+        res = self._k.encaps(pk)
+        return (res[1], res[0]) if len(res[0]) == SS else (res[0], res[1])
     def decaps(self, ct, sk):
-        try: return self._k.decaps(ct, sk)
-        except Exception: return self._k.decaps(sk, ct)
+        if len(ct) != CT or len(sk) != DK: raise ValueError("Invalid KEM decaps lengths")
+        return self._k.decaps(sk, ct)
 
 class _OqsBackend:
     name = "liboqs (ML-KEM-768)"
@@ -545,11 +559,17 @@ _CLIPBOARD_TEXT = ""
 def safe_copy(text):
     global _CLIPBOARD_TEXT
     _CLIPBOARD_TEXT = text
+    try: pyperclip.copy(text)
+    except Exception: pass
     try: Clipboard.copy(text)
     except Exception: pass
 
 def safe_paste():
     global _CLIPBOARD_TEXT
+    try:
+        val = pyperclip.paste()
+        if val: return val
+    except Exception: pass
     try:
         val = Clipboard.paste()
         if val: return val
@@ -1015,10 +1035,11 @@ class MainScreen(Screen):
             d["sck"] = b64(bob_sess.sck); d["sn"] = bob_sess.sn
             vsave(sim_path, d)
 
+            # DERF:V1: Wrapper Prefix on Bob's simulated reply
             bob_b64 = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
             self.dec_input.text = bob_b64
             self.do_decrypt()
-            self.show_popup("Simulated Reply Received", f"Received & decrypted live simulated packet reply from 'Bob Test'!")
+            self.show_popup("Simulated Reply Received", f"Received & decrypted live DERF:V1: packet reply from 'Bob Test'!")
         except Exception as e:
             self.show_popup("Simulate Reply Error", str(e))
 
@@ -1041,7 +1062,6 @@ class MainScreen(Screen):
             pkts = sess.encrypt(pt.encode('utf-8'), me_fp, peer_fp)
             sess.save(peer)
 
-            # DERF:V1: Wrapper Prefix
             out_b64 = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
             self.enc_output.text = out_b64
             safe_copy(out_b64)
@@ -1069,11 +1089,12 @@ class MainScreen(Screen):
             self.show_popup("Decrypt Error", "Paste Base64 packet text first.")
             return
 
-        # DERF:V1: Wrapper Strip Check
-        if raw.startswith("DERF:V1:"):
-            raw = raw[8:].strip()
-
-        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        lines = []
+        for l in raw.splitlines():
+            s = l.strip()
+            if not s: continue
+            if s.startswith("DERF:V1:"): s = s[8:].strip()
+            if s: lines.append(s)
         try:
             pkts = [ub64(clean_b64(l)) for l in lines]
         except Exception:
@@ -1305,12 +1326,12 @@ class MainScreen(Screen):
             "   - Initiator pastes Responder's Reply into Step 2 and clicks 'Execute Pairing Step'. Pairing complete!\n"
             "3. [b]Send Encrypted Messages[/b]: Go to Messages tab, type plaintext, click ENCRYPT, and copy/send uniform Base64 packets.\n"
             "4. [b]Decrypt Messages[/b]: Paste received Base64 packets into Decrypt box and click DECRYPT.\n\n"
+            "[b]Background Hotkeys & Invisible Layer[/b]:\n"
+            "• Highlight text anywhere and press [b]Alt+Shift+D[/b] or [b]Ctrl+Shift+E[/b] to encrypt & replace text in-place!\n"
+            "• Copying any 'DERF:V1:' encrypted message auto-decrypts and shows a notification.\n\n"
             "[b]Single-Device Testing[/b]:\n"
             "• Click '[ AUTO-PAIR TEST PEER ]' in the sidebar to simulate 'Bob Test' instantly.\n"
-            "• Use '[ Simulate Bob Reply ]' in the Decrypt view to test round-trip messaging on a single device.\n\n"
-            "[b]Important Security Rules:[/b]\n"
-            "• Messages must be decrypted within [b]7 minutes[/b] (420s freshness window) to prevent replay attacks.\n"
-            "• Compare the 12-digit Safety Code out-of-band once to verify peer key authenticity."
+            "• Use '[ Simulate Bob Reply ]' in the Decrypt view to test round-trip messaging on a single device."
         )
 
         lbl = Label(text=help_text, markup=True, font_size='12sp', color=TEXT_MAIN, halign='left', valign='top', size_hint_y=None)
@@ -1399,49 +1420,97 @@ class MainScreen(Screen):
         btn_yes.bind(on_release=nuke_now)
         popup.open()
 
-def start_android_clipboard_monitor(app_ref):
-    """Pyjnius Android Background Clipboard Monitor Thread."""
-    try:
-        from jnius import autoclass
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        Context = autoclass('android.content.Context')
-        activity = PythonActivity.mActivity
-        clipboard_service = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+def start_integrated_background_service(app_ref):
+    """Integrated Desktop & Android Background Service (Hotkeys + Clipboard Monitor)."""
+    def do_bg_hotkey_encrypt():
+        try:
+            if kb_controller:
+                with kb_controller.pressed(Key.ctrl):
+                    kb_controller.press('c')
+                    kb_controller.release('c')
+                time.sleep(0.2)
 
-        def check_android_clip(dt):
+            selected_text = safe_paste().strip()
+            if not selected_text or selected_text.startswith("DERF:V1:"):
+                return
+
+            peer = app_ref.main_screen.selected_peer or (list(contacts_load().keys())[0] if contacts_load() else None)
+            if not peer: return
+
+            cs = contacts_load()
+            sess = Session.load(peer)
+            me_fp = id_fp(id_bundle(app_ref.idn))
+            peer_fp = id_fp(cs[peer])
+
+            pkts = sess.encrypt(selected_text.encode('utf-8'), me_fp, peer_fp)
+            sess.save(peer)
+
+            cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
+            safe_copy(cipher_text)
+
+            if kb_controller:
+                time.sleep(0.1)
+                with kb_controller.pressed(Key.ctrl):
+                    kb_controller.press('v')
+                    kb_controller.release('v')
+
+            if notification:
+                notification.notify(title="Derf Encrypted", message=f"Encrypted message for {peer} and replaced text!")
+        except Exception as e:
+            print(f"Hotkey BG error: {e}")
+
+    # Register Global Hotkeys via pynput without Admin
+    if keyboard:
+        try:
+            listener = keyboard.GlobalHotKeys({
+                '<alt>+<shift>+d': do_bg_hotkey_encrypt,
+                '<ctrl>+<shift>+e': do_bg_hotkey_encrypt
+            })
+            listener.start()
+            print("[*] Integrated Background Hotkey Listener active (Alt+Shift+D / Ctrl+Shift+E)")
+        except Exception as e:
+            print(f"Hotkey listener status: {e}")
+
+    # Clipboard Monitor Loop
+    def bg_clip_monitor():
+        last_clip = ""
+        pattern = re.compile(r"^DERF:V1:[A-Za-z0-9+/=\n\r\s]{50,}$")
+        while True:
             try:
-                if clipboard_service.hasPrimaryClip():
-                    clip_data = clipboard_service.getPrimaryClip()
-                    if clip_data and clip_data.getItemCount() > 0:
-                        text = str(clip_data.getItemAt(0).getText())
-                        if text and text.startswith("DERF:V1:"):
-                            raw = text[8:].strip()
-                            lines = [l.strip() for l in raw.splitlines() if l.strip()]
-                            pkts = [ub64(clean_b64(l)) for l in lines]
-                            cs = contacts_load()
-                            me_fp = id_fp(id_bundle(app_ref.idn))
-                            paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-                            for peer in paired:
-                                sess = Session.load(peer)
-                                peer_fp = id_fp(cs[peer])
-                                msgs = []
-                                got = 0
-                                for p in pkts:
-                                    try:
-                                        out = feed(sess, p, me_fp, peer_fp, app_ref.main_screen.buffers)
-                                        if out: msgs.append(out.decode('utf-8')); got += 1
-                                    except Exception: pass
-                                if got:
-                                    sess.save(peer)
-                                    app_ref.main_screen.show_popup(f"Decrypted ({peer})", "\n".join(msgs))
-                                    return
+                time.sleep(0.5)
+                clip_text = safe_paste().strip()
+                if clip_text and clip_text != last_clip and pattern.match(clip_text):
+                    last_clip = clip_text
+                    raw = clip_text[8:].strip()
+                    lines = [l.strip() for l in raw.splitlines() if l.strip()]
+                    pkts = [ub64(clean_b64(l)) for l in lines]
+
+                    cs = contacts_load()
+                    if not hasattr(app_ref, 'idn') or not app_ref.idn: continue
+                    me_fp = id_fp(id_bundle(app_ref.idn))
+
+                    paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
+                    for peer in paired:
+                        sess = Session.load(peer)
+                        peer_fp = id_fp(cs[peer])
+                        msgs = []
+                        got = 0
+                        for p in pkts:
+                            try:
+                                out = feed(sess, p, me_fp, peer_fp, app_ref.main_screen.buffers)
+                                if out: msgs.append(out.decode('utf-8')); got += 1
+                            except Exception: pass
+                        if got:
+                            sess.save(peer)
+                            dec_msg = "\n".join(msgs)
+                            Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup(f"Decrypted Message ({peer})", dec_msg))
+                            if notification:
+                                notification.notify(title=f"Derf Decrypted ({peer})", message=dec_msg[:200])
+                            break
             except Exception: pass
 
-        Clock.schedule_interval(check_android_clip, 1.0)
-    except ImportError:
-        pass
-    except Exception:
-        pass
+    t_clip = threading.Thread(target=bg_clip_monitor, daemon=True)
+    t_clip.start()
 
 class DerfApp(App):
     def build(self):
@@ -1467,10 +1536,7 @@ class DerfApp(App):
     def on_vault_unlocked(self):
         self.main_screen.refresh_views()
         self.sm.current = 'main'
-        try:
-            with open(P(".vault_token"), "wb") as f: f.write(VAULT)
-        except Exception: pass
-        start_android_clipboard_monitor(self)
+        start_integrated_background_service(self)
 
 def main():
     if not _single():
