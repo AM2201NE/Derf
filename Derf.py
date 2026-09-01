@@ -1630,24 +1630,84 @@ class MainScreen(Screen):
         btn_yes.bind(on_release=nuke_now)
         popup.open()
 
+
+# Native Win32 keyboard event injection for zero-latency key release on Windows
+IS_WINDOWS = (sys.platform == "win32")
+if IS_WINDOWS:
+    import ctypes
+    user32 = ctypes.windll.user32
+    VK_SHIFT = 0x10
+    VK_CONTROL = 0x11
+    VK_MENU = 0x12  # Alt
+    VK_LALT = 0xA4
+    VK_RALT = 0xA5
+    VK_LSHIFT = 0xA0
+    VK_RSHIFT = 0xA1
+    KEYEVENTF_KEYUP = 0x0002
+
+    def trigger_copy_native():
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+    def trigger_paste_native():
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('V'), 0, 0, 0)
+        user32.keybd_event(ord('V'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+else:
+    def trigger_copy_native():
+        if kb_controller:
+            for k in [Key.alt, Key.alt_l, Key.alt_r, Key.shift, Key.shift_l, Key.shift_r, Key.ctrl, Key.ctrl_l, Key.ctrl_r]:
+                try: kb_controller.release(k)
+                except Exception: pass
+            with kb_controller.pressed(Key.ctrl):
+                kb_controller.press('c')
+                kb_controller.release('c')
+
+    def trigger_paste_native():
+        if kb_controller:
+            for k in [Key.alt, Key.alt_l, Key.alt_r, Key.shift, Key.shift_l, Key.shift_r, Key.ctrl, Key.ctrl_l, Key.ctrl_r]:
+                try: kb_controller.release(k)
+                except Exception: pass
+            with kb_controller.pressed(Key.ctrl):
+                kb_controller.press('v')
+                kb_controller.release('v')
+
+_bg_hotkey_lock = threading.Lock()
+
 def start_integrated_background_service(app_ref):
     """Integrated Desktop & Android Background Service (Hotkeys + Clipboard Monitor)."""
     def do_bg_hotkey_encrypt():
+        if not _bg_hotkey_lock.acquire(blocking=False):
+            return
         try:
-            if kb_controller:
-                with kb_controller.pressed(Key.ctrl):
-                    kb_controller.press('c')
-                    kb_controller.release('c')
-                time.sleep(0.2)
+            trigger_copy_native()
+            time.sleep(0.04)
 
             selected_text = safe_paste().strip()
             if not selected_text or selected_text.startswith("DERF:V1:"):
                 return
 
-            peer = app_ref.main_screen.selected_peer or (list(contacts_load().keys())[0] if contacts_load() else None)
-            if not peer: return
-
             cs = contacts_load()
+            peer = app_ref.main_screen.selected_peer or (list(cs.keys())[0] if cs else None)
+            if not peer or not os.path.exists(P(f"lc_session_{peer}.json")): return
+
             sess = Session.load(peer)
             me_fp = id_fp(id_bundle(app_ref.idn))
             peer_fp = id_fp(cs[peer])
@@ -1658,16 +1718,17 @@ def start_integrated_background_service(app_ref):
             cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
             safe_copy(cipher_text)
 
-            if kb_controller:
-                time.sleep(0.1)
-                with kb_controller.pressed(Key.ctrl):
-                    kb_controller.press('v')
-                    kb_controller.release('v')
+            time.sleep(0.02)
+            trigger_paste_native()
 
             if notification:
                 notification.notify(title="Derf Encrypted", message=f"Encrypted message for {peer} and replaced text!")
         except Exception as e:
             print(f"Hotkey BG error: {repr(e)}")
+        finally:
+            _bg_hotkey_lock.release()
+
+
 
     # Register Global Hotkeys via pynput without Admin
     if keyboard:

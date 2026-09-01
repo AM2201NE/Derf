@@ -1,7 +1,7 @@
 """
-DERF BACKGROUND SERVICE (Desktop System Tray & High-Performance Layer)
-Uses pynput for non-admin global hotkey listeners & clipboard auto-decryption.
-Optimized for Windows & cross-platform instant hotkey response & auto paste.
+DERF BACKGROUND SERVICE (Desktop System Tray & Zero-Latency Layer)
+Uses pynput + Win32 native keybd_event for instant single-click hotkey response.
+Zero-delay instant Alt+Shift+D / Ctrl+Shift+E text replacement.
 """
 import os, sys, re, time, threading
 import pyperclip
@@ -52,6 +52,63 @@ try:
 except Exception:
     pystray = None
 
+# Native Win32 keyboard event injection for zero-latency key release on Windows
+IS_WINDOWS = (sys.platform == "win32")
+if IS_WINDOWS:
+    import ctypes
+    user32 = ctypes.windll.user32
+    VK_SHIFT = 0x10
+    VK_CONTROL = 0x11
+    VK_MENU = 0x12  # Alt
+    VK_LALT = 0xA4
+    VK_RALT = 0xA5
+    VK_LSHIFT = 0xA0
+    VK_RSHIFT = 0xA1
+    KEYEVENTF_KEYUP = 0x0002
+
+    def release_modifiers_native():
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+    def trigger_copy_native():
+        release_modifiers_native()
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+    def trigger_paste_native():
+        release_modifiers_native()
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('V'), 0, 0, 0)
+        user32.keybd_event(ord('V'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+else:
+    def release_modifiers_native():
+        if kb_controller:
+            for k in [Key.alt, Key.alt_l, Key.alt_r, Key.shift, Key.shift_l, Key.shift_r, Key.ctrl, Key.ctrl_l, Key.ctrl_r]:
+                try: kb_controller.release(k)
+                except Exception: pass
+
+    def trigger_copy_native():
+        release_modifiers_native()
+        if kb_controller:
+            with kb_controller.pressed(Key.ctrl):
+                kb_controller.press('c')
+                kb_controller.release('c')
+
+    def trigger_paste_native():
+        release_modifiers_native()
+        if kb_controller:
+            with kb_controller.pressed(Key.ctrl):
+                kb_controller.press('v')
+                kb_controller.release('v')
+
 # Global state for background service
 ACTIVE_PEER = None
 BUFFERS = {}
@@ -74,39 +131,19 @@ def get_first_paired_peer():
     paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
     return paired[0] if paired else None
 
-_hotkey_busy = False
+_hotkey_lock = threading.Lock()
 
 def do_hotkey_encrypt():
-    global ACTIVE_PEER, _hotkey_busy
-    if _hotkey_busy:
+    if not _hotkey_lock.acquire(blocking=False):
         return
-    _hotkey_busy = True
     try:
         load_background_vault()
 
-        # Instant release of held modifiers so Windows/OS registers Ctrl+C cleanly
-        if kb_controller:
-            try:
-                kb_controller.release(Key.alt)
-                kb_controller.release(Key.alt_l)
-                kb_controller.release(Key.alt_r)
-                kb_controller.release(Key.shift)
-                kb_controller.release(Key.shift_l)
-                kb_controller.release(Key.shift_r)
-                kb_controller.release(Key.ctrl)
-                kb_controller.release(Key.ctrl_l)
-                kb_controller.release(Key.ctrl_r)
-            except Exception:
-                pass
+        # Step 1: Force instant release of physical Alt/Shift modifiers and trigger Ctrl+C
+        trigger_copy_native()
+        time.sleep(0.04)
 
-            time.sleep(0.02)
-
-            # Simulate Ctrl+C to copy selected text instantly
-            with kb_controller.pressed(Key.ctrl):
-                kb_controller.press('c')
-                kb_controller.release('c')
-            time.sleep(0.08)
-
+        # Step 2: Read highlighted text
         selected_text = safe_clip_paste().strip()
         if not selected_text or selected_text.startswith("DERF:V1:"):
             return
@@ -115,14 +152,14 @@ def do_hotkey_encrypt():
         if not peer:
             if notification:
                 notification.notify(title="Derf Background", message="No paired contacts found for encryption.")
-            print("[DERF BG] No paired contact available.")
             return
 
         cs = contacts_load()
         sess = Session.load(peer)
 
-        idn = vload(P("lc_identity.json"))
-        me_fp = id_fp(ub64(idn["pq_pk"]))
+        raw_idn = vload(P("lc_identity.json"))
+        me_pk = ub64(raw_idn["pq_pk"]) if isinstance(raw_idn["pq_pk"], str) else raw_idn["pq_pk"]
+        me_fp = id_fp(me_pk)
         peer_fp = id_fp(cs[peer])
 
         pkts = sess.encrypt(selected_text.encode('utf-8'), me_fp, peer_fp)
@@ -131,30 +168,27 @@ def do_hotkey_encrypt():
         cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
         safe_clip_copy(cipher_text)
 
-        # Simulate Ctrl+V to paste encrypted text back instantly
-        if kb_controller:
-            time.sleep(0.05)
-            with kb_controller.pressed(Key.ctrl):
-                kb_controller.press('v')
-                kb_controller.release('v')
+        # Step 3: Force instant Ctrl+V paste replacement
+        time.sleep(0.02)
+        trigger_paste_native()
 
         if notification:
             notification.notify(
                 title="Derf Encrypted",
-                message=f"Encrypted message for {peer} & replaced in place!"
+                message=f"Encrypted message for {peer} & replaced instantly!"
             )
         print(f"[DERF BG] Encrypted & replaced text for {peer} instantly!")
     except Exception as e:
         print(f"[DERF BG Error] Hotkey encrypt: {e}")
     finally:
-        _hotkey_busy = False
+        _hotkey_lock.release()
 
 def monitor_clipboard_loop():
     last_clip = ""
     pattern = re.compile(r"^DERF:V1:[A-Za-z0-9+/=\n\r\s]{50,}$")
     while True:
         try:
-            time.sleep(0.2)
+            time.sleep(0.15)
             load_background_vault()
             clip_text = safe_clip_paste().strip()
             if clip_text and clip_text != last_clip and pattern.match(clip_text):
@@ -164,8 +198,9 @@ def monitor_clipboard_loop():
                 pkts = [ub64(clean_b64(l)) for l in lines]
 
                 cs = contacts_load()
-                idn = vload(P("lc_identity.json"))
-                me_fp = id_fp(ub64(idn["pq_pk"]))
+                raw_idn = vload(P("lc_identity.json"))
+                me_pk = ub64(raw_idn["pq_pk"]) if isinstance(raw_idn["pq_pk"], str) else raw_idn["pq_pk"]
+                me_fp = id_fp(me_pk)
 
                 paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
                 for peer in paired:
@@ -214,7 +249,7 @@ def create_tray_icon():
     return pystray.Icon("Derf", img, "Derf Background Service", menu)
 
 def main():
-    print("[*] Starting High-Performance Derf Background Service...")
+    print("[*] Starting High-Performance Zero-Latency Derf Background Service...")
     load_background_vault()
 
     # Start Clipboard Monitor Thread
