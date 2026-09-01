@@ -1438,8 +1438,10 @@ def start_android_clipboard_monitor(app_ref):
             except Exception: pass
 
         Clock.schedule_interval(check_android_clip, 1.0)
-    except Exception as e:
-        print(f"Android Pyjnius monitor status: {e}")
+    except ImportError:
+        pass
+    except Exception:
+        pass
 
 class DerfApp(App):
     def build(self):
@@ -1465,6 +1467,9 @@ class DerfApp(App):
     def on_vault_unlocked(self):
         self.main_screen.refresh_views()
         self.sm.current = 'main'
+        try:
+            with open(P(".vault_token"), "wb") as f: f.write(VAULT)
+        except Exception: pass
         start_android_clipboard_monitor(self)
 
 def main():
