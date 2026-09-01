@@ -1848,8 +1848,7 @@ def start_integrated_background_service(app_ref):
             time.sleep(0.02)
             trigger_paste_native()
 
-            if notification:
-                notification.notify(title="Derf Encrypted", message=f"Encrypted message for {peer} and replaced text!")
+            # Notification removed per request
         except Exception as e:
             print(f"Hotkey BG error: {repr(e)}")
         finally:
@@ -1907,8 +1906,7 @@ def start_integrated_background_service(app_ref):
                     dec_msg = decrypt_alien_stack(clip_text, app_ref.idn, custom_session_loader=app_ref.main_screen.load_sim_bob_session)
                     if dec_msg:
                         Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup("Decrypted Message", dec_msg))
-                        if notification:
-                            notification.notify(title="Derf Decrypted", message=dec_msg[:200])
+                        # Notification removed per request
             except Exception:
                 pass
 

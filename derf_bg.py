@@ -148,8 +148,7 @@ def do_hotkey_encrypt():
 
         peer = ACTIVE_PEER or get_first_paired_peer()
         if not peer:
-            if notification:
-                notification.notify(title="Derf Background", message="No paired contacts found for encryption.")
+            # notification.notify(title="Derf Background", message="No paired contacts found for encryption.")
             return
 
         raw_idn = vload(P("lc_identity.json"))
@@ -186,8 +185,7 @@ def monitor_clipboard_loop():
 
                 dec_msg = decrypt_alien_stack(clip_text, idn)
                 if dec_msg:
-                    if notification:
-                        notification.notify(
+                    # notification.notify(
                             title="Derf Decrypted",
                             message=dec_msg[:200]
                         )
