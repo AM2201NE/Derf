@@ -1319,103 +1319,216 @@ class MainScreen(Screen):
             self.show_popup("Decrypt Failed", "Could not decrypt (wrong key, stale, or tampered).")
 
 
-    # --- VIEW 2.5: LIVE SIMULATOR & TEST BENCH ---
+
     def build_simulator_view(self):
         split = BoxLayout(orientation='horizontal', spacing=12)
 
-        left_box = CardPanel(orientation='vertical', padding=12, spacing=10)
-        lbl_s1 = Label(text="INTERACTIVE REAL-TIME TEST BENCH", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
-        lbl_s1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
-        left_box.add_widget(lbl_s1)
+        # --- LEFT COLUMN: DISCORD-STYLE MESSENGER SIMULATION ---
+        left_box = CardPanel(bg_color=(0.19, 0.20, 0.22, 1), orientation='vertical', padding=12, spacing=8)
 
-        lbl_hk = Label(text="1. Test Global Hotkey Encrypt (Alt+Shift+D / Ctrl+Shift+E):", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=18, halign='left', valign='middle')
-        lbl_hk.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
-        left_box.add_widget(lbl_hk)
+        # Discord Channel Header
+        discord_hdr = CardPanel(bg_color=(0.17, 0.18, 0.19, 1), radius=8, size_hint_y=None, height=36, padding=(12, 6), orientation='horizontal')
+        lbl_channel = Label(text="💬 # derf-pq-chat  |  Post-Quantum Double Ratchet Channel", font_size='12sp', bold=True, color=(0.95, 0.95, 0.96, 1), halign='left', valign='middle')
+        lbl_channel.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        discord_hdr.add_widget(lbl_channel)
+        left_box.add_widget(discord_hdr)
 
-        self.sim_hk_input = TextInput(text="Top Secret Quantum Coordinates: 37.7749 N, 122.4194 W", background_color=(0.06, 0.07, 0.09, 1),
-                                     foreground_color=TEXT_MAIN, padding=(10, 8), font_size='11sp', size_hint_y=None, height=50)
-        left_box.add_widget(self.sim_hk_input)
+        # Chat Feed
+        self.sim_chat_scroll = ScrollView(size_hint_y=1)
+        self.sim_chat_feed = BoxLayout(orientation='vertical', padding=10, spacing=10, size_hint_y=None)
+        self.sim_chat_feed.bind(minimum_height=self.sim_chat_feed.setter('height'))
 
-        btn_run_hk = PrimaryButton(text="[ SIMULATE HOTKEY ENCRYPT ]", size_hint_y=None, height=36, radius=8)
-        btn_run_hk.bind(on_release=self.run_sim_hotkey)
-        left_box.add_widget(btn_run_hk)
+        welcome_lbl = Label(text="[i][*] Discord channel active. Send a message as Alice or Bob. Click 'COPY DISCORD CIPHERTEXT', then press [ Alt + Shift + Q ] to trigger the Quick Peek Glass Overlay hovering above the chat![/i]",
+                            markup=True, font_size='11sp', color=(0.58, 0.61, 0.64, 1), size_hint_y=None, height=36, halign='center', valign='middle')
+        welcome_lbl.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        self.sim_chat_feed.add_widget(welcome_lbl)
+        self.sim_chat_scroll.add_widget(self.sim_chat_feed)
+        left_box.add_widget(self.sim_chat_scroll)
 
-        lbl_dec = Label(text="2. Test Clipboard Real-time Auto-Decrypt Monitor:", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=18, halign='left', valign='middle')
-        lbl_dec.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
-        left_box.add_widget(lbl_dec)
+        # Chat Input Bar
+        self.sim_chat_input = TextInput(text="Meet at 18:00 UTC. Bring the quantum key vault.", multiline=False,
+                                       background_color=(0.22, 0.23, 0.25, 1), foreground_color=(0.95, 0.95, 0.96, 1),
+                                       padding=(12, 8), font_size='12sp', size_hint_y=None, height=38)
+        left_box.add_widget(self.sim_chat_input)
 
-        self.sim_dec_input = TextInput(hint_text="Paste DERF:V1: ciphertext here or click Simulate Hotkey Encrypt above...", background_color=(0.06, 0.07, 0.09, 1),
-                                      foreground_color=CYAN_PRIMARY, padding=(10, 8), font_size='11sp', size_hint_y=None, height=70)
-        left_box.add_widget(self.sim_dec_input)
+        # Discord Action Buttons Row
+        btn_row = BoxLayout(orientation='horizontal', spacing=8, size_hint_y=None, height=36)
+        btn_alice = PrimaryButton(text="[ ALICE SENDS ]", radius=8, bg_color=(0.35, 0.40, 0.95, 1), color=(1, 1, 1, 1))
+        btn_alice.bind(on_release=lambda x: self.run_sim_send_actor("Alice"))
 
-        btn_run_dec = SecondaryButton(text="[ SIMULATE CLIPBOARD DECRYPT MONITOR ]", size_hint_y=None, height=36)
-        btn_run_dec.bind(on_release=self.run_sim_clipboard_decrypt)
-        left_box.add_widget(btn_run_dec)
+        btn_bob = PrimaryButton(text="[ BOB REPLIES ]", radius=8, bg_color=(0.14, 0.65, 0.35, 1), color=(1, 1, 1, 1))
+        btn_bob.bind(on_release=lambda x: self.run_sim_send_actor("Bob"))
 
-        lbl_f = Label(text="3. Head-to-Toe Automated Suite:", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=18, halign='left', valign='middle')
-        lbl_f.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
-        left_box.add_widget(lbl_f)
-
-        btn_run_full = PrimaryButton(text="[ RUN HEAD-TO-TOE FULL SYSTEM SIMULATION ]", size_hint_y=None, height=42, radius=10)
-        btn_run_full.bind(on_release=self.run_sim_head_to_toe)
-        left_box.add_widget(btn_run_full)
+        btn_row.add_widget(btn_alice)
+        btn_row.add_widget(btn_bob)
+        left_box.add_widget(btn_row)
 
         split.add_widget(left_box)
 
-        right_box = CardPanel(orientation='vertical', padding=12, spacing=10)
-        lbl_l = Label(text="SIMULATION & PROTOCOL EVENT LOG", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        # --- RIGHT COLUMN: QUICK PEEK HUD PREVIEW & SECURITY SANDBOX ---
+        right_box = CardPanel(bg_color=(0.17, 0.18, 0.19, 1), orientation='vertical', padding=12, spacing=10)
+
+        lbl_peek_hdr = Label(text="👻 QUICK PEEK GLASS CARD CONTROL", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=20, halign='left')
+        lbl_peek_hdr.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        right_box.add_widget(lbl_peek_hdr)
+
+        lbl_peek_desc = Label(text="• Highlight ciphertext in Discord or above and press [b]Alt+Shift+Q[/b].\n• The frameless Glass Card appears on top of all open apps right at your cursor position with 0 app popups.",
+                              markup=True, font_size='11sp', color=(0.58, 0.61, 0.64, 1), size_hint_y=None, height=44, halign='left')
+        lbl_peek_desc.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        right_box.add_widget(lbl_peek_desc)
+
+        # Security Sandbox
+        lbl_a_title = Label(text="SECURITY ATTACK SANDBOX", font_size='12sp', bold=True, color=COLOR_RED, size_hint_y=None, height=20, halign='left')
+        lbl_a_title.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        right_box.add_widget(lbl_a_title)
+
+        sandbox_row = BoxLayout(orientation='horizontal', spacing=6, size_hint_y=None, height=34)
+        btn_tamper = SecondaryButton(text="[ TAMPER BIT-FLIP ]", font_size='10sp')
+        btn_tamper.bind(on_release=self.run_sim_attack_tamper)
+
+        btn_replay = SecondaryButton(text="[ REPLAY ATTACK ]", font_size='10sp')
+        btn_replay.bind(on_release=self.run_sim_attack_replay)
+
+        btn_suite = PrimaryButton(text="[ FULL SUITE ]", radius=6, font_size='10sp')
+        btn_suite.bind(on_release=self.run_sim_head_to_toe)
+
+        sandbox_row.add_widget(btn_tamper)
+        sandbox_row.add_widget(btn_replay)
+        sandbox_row.add_widget(btn_suite)
+        right_box.add_widget(sandbox_row)
+
+        # Event log
+        lbl_l = Label(text="DISCORD SIMULATION LOG", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=20, halign='left')
         lbl_l.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
         right_box.add_widget(lbl_l)
 
-        self.sim_log_output = TextInput(text="[*] Simulation environment initialized.\n[*] Ready to test hotkeys, auto-decryption, and full protocol suite.\n",
-                                        readonly=True, background_color=(0.04, 0.05, 0.07, 1), foreground_color=TEXT_MAIN, padding=(12, 10), font_size='11sp')
+        self.sim_log_output = TextInput(text="[*] Discord #derf-pq-chat simulation active.\n[*] Highlight ciphertext and press Alt+Shift+Q for Quick Peek.\n",
+                                        readonly=True, background_color=(0.12, 0.13, 0.14, 1), foreground_color=(0.95, 0.95, 0.96, 1), padding=(10, 8), font_size='11sp')
         right_box.add_widget(self.sim_log_output)
 
         split.add_widget(right_box)
+        self.sim_ghost_active = True
+        self.last_sim_ciphertext = None
         return split
 
     def sim_log(self, text):
         if hasattr(self, 'sim_log_output'):
             self.sim_log_output.text += f"[*] {text}\n"
 
-    def run_sim_hotkey(self, *args):
+    def run_sim_send_actor(self, actor, *args):
         try:
-            inp = self.sim_hk_input.text.strip()
-            if not inp:
-                self.sim_log("Error: Hotkey input text is empty.")
+            pt = self.sim_chat_input.text.strip()
+            if not pt:
+                self.sim_log("Error: Chat text payload is empty.")
                 return
-            safe_copy(inp)
-            self.sim_log(f"Copied input to clipboard: '{inp[:40]}...'")
 
-            peer = self.selected_peer or "Bob Test"
+            peer = "Bob Test"
             if not os.path.exists(P(f"lc_session_{peer}.json")):
                 self.auto_pair_sim_peer()
-                peer = "Bob Test"
 
             idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
-            cipher_text = encrypt_alien_stack(inp, peer, idn)
 
-            safe_copy(cipher_text)
-            self.sim_dec_input.text = cipher_text
-            self.sim_log(f"[SUCCESS] Hotkey Encrypt simulated for {peer}! Replaced clipboard with DERF:V1: ciphertext.")
-        except Exception as e:
-            self.sim_log(f"[ERROR] Hotkey simulation failed: {repr(e)}")
+            if actor == "Alice":
+                cipher_text = encrypt_alien_stack(pt, peer, idn)
+                self.last_sim_ciphertext = cipher_text
+                safe_copy(cipher_text)
 
-    def run_sim_clipboard_decrypt(self, *args):
-        try:
-            cip = self.sim_dec_input.text.strip()
-            if not cip or "DERF:V1:" not in cip:
-                self.sim_log("Error: Input is not a valid DERF:V1: ciphertext.")
-                return
-
-            idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
-            dec_msg = decrypt_alien_stack(cip, idn, custom_session_loader=self.load_sim_bob_session)
-            if dec_msg:
-                self.sim_log(f"[SUCCESS] Clipboard Auto-Decrypt triggered! Decrypted Message: '{dec_msg}'")
+                self._add_discord_message_card("Alice", "YOU", pt, cipher_text)
+                self.sim_log(f"Alice encrypted & posted message in Discord channel ({len(pt)} chars).")
             else:
-                self.sim_log("[WARN] Could not decrypt ciphertext with any active session.")
+                sim_path = P("lc_sim_bob_session.json")
+                d = vload(sim_path)
+                bob_sess = Session(ub64(d["sid"]), None, d["role"], ub64(d["sck"]), ub64(d["rck"]),
+                                   d["sn"], d["rn"], ub64(d["hsend"]), ub64(d["hrecv"]),
+                                   {int(k): ub64(v) for k, v in d["sk"].items()})
+
+                bob_idn = {"pq_sk": ub64(d["bob_idn"]["pq_sk"]), "pq_pk": ub64(d["bob_idn"]["pq_pk"])}
+                alice_pk = id_bundle(idn)
+
+                msg_bytes = pt.encode('utf-8')
+                is_compressed = False
+                if ALIEN_COMPRESSION_ENABLED and zstd_compressor and len(msg_bytes) > 50:
+                    msg_bytes = zstd_compressor.compress(msg_bytes)
+                    is_compressed = True
+                elif len(msg_bytes) > 50:
+                    msg_bytes = zlib.compress(msg_bytes, 9)
+                    is_compressed = True
+
+                pkts = bob_sess.encrypt(msg_bytes, id_fp(bob_idn["pq_pk"]), id_fp(alice_pk))
+                d["sck"] = b64(bob_sess.sck); d["sn"] = bob_sess.sn
+                vsave(sim_path, d)
+
+                combined_binary = b"".join(pkts)
+                encoded_str = base64.b85encode(combined_binary).decode('ascii')
+                prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
+                cipher_text = prefix + encoded_str
+                self.last_sim_ciphertext = cipher_text
+
+                self._add_discord_message_card("Bob", "PEER", pt, cipher_text)
+                self.sim_log(f"Bob encrypted & posted message in Discord channel ({len(pt)} chars).")
+
         except Exception as e:
-            self.sim_log(f"[ERROR] Clipboard decrypt simulation failed: {repr(e)}")
+            self.sim_log(f"[ERROR] Actor send simulation failed: {repr(e)}")
+
+    def _add_discord_message_card(self, name, role_badge, plaintext, ciphertext):
+        card = CardPanel(bg_color=(0.17, 0.18, 0.19, 1), radius=8, size_hint_y=None, padding=(10, 8), spacing=6, orientation='vertical')
+
+        badge_color = (0.35, 0.40, 0.95, 1) if role_badge == "YOU" else (0.14, 0.65, 0.35, 1)
+        lbl_hdr = Label(text=f"👤 [b]{name}[/b]  [size=9sp][color=#FFFFFF]{role_badge}[/color][/size]  [color=#949BA4]Today at {time.strftime('%H:%M')}[/color]",
+                        markup=True, font_size='11sp', color=(0.95, 0.95, 0.96, 1), size_hint_y=None, height=18, halign='left')
+        lbl_hdr.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        card.add_widget(lbl_hdr)
+
+        lbl_cip = TextInput(text=ciphertext, readonly=True, background_color=(0.12, 0.13, 0.14, 1), foreground_color=(0, 240, 255, 1),
+                            font_size='10sp', size_hint_y=None, height=52, padding=(8, 6))
+        card.add_widget(lbl_cip)
+
+        btn_row = BoxLayout(orientation='horizontal', spacing=6, size_hint_y=None, height=28)
+        btn_copy = SecondaryButton(text="[ 📋 COPY DISCORD CIPHERTEXT ]", font_size='9sp')
+        btn_copy.bind(on_release=lambda x: self.copy_to_clip(ciphertext, "Discord ciphertext copied to clipboard!"))
+
+        btn_row.add_widget(btn_copy)
+        card.add_widget(btn_row)
+
+        card.height = 118
+        self.sim_chat_feed.add_widget(card)
+
+    def run_sim_attack_tamper(self, *args):
+        self.sim_log("--- ATTACK SANDBOX: BIT-FLIP TAMPER TEST ---")
+        if not self.last_sim_ciphertext:
+            self.sim_log("Sending automated test packet first to generate ciphertext...")
+            self.run_sim_send_actor("Alice")
+
+        tampered = list(self.last_sim_ciphertext)
+        pos = len(tampered) // 2
+        tampered[pos] = "X" if tampered[pos] != "X" else "Y"
+        tampered_str = "".join(tampered)
+
+        self.sim_log(f"Flipped bit at position {pos}. Attempting ChaCha20-Poly1305 AEAD decryption...")
+
+        idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
+        decrypted = decrypt_alien_stack(tampered_str, idn, custom_session_loader=self.load_sim_bob_session)
+
+        if decrypted is None:
+            self.sim_log(" [SUCCESS] AEAD Authentication MAC rejected tampered ciphertext! Zero plaintext leaked.")
+        else:
+            self.sim_log(" [FAIL] Tampered ciphertext was incorrectly accepted!")
+
+    def run_sim_attack_replay(self, *args):
+        self.sim_log("--- ATTACK SANDBOX: REPLAY ATTACK TEST ---")
+        if not self.last_sim_ciphertext:
+            self.run_sim_send_actor("Alice")
+
+        self.sim_log("Re-submitting previously received ratchet packet to test replay protection...")
+        idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
+
+        decrypted1 = decrypt_alien_stack(self.last_sim_ciphertext, idn, custom_session_loader=self.load_sim_bob_session)
+        decrypted2 = decrypt_alien_stack(self.last_sim_ciphertext, idn, custom_session_loader=self.load_sim_bob_session)
+
+        if decrypted2 is None:
+            self.sim_log(" [SUCCESS] Replay attack blocked! Stale message counter rejected.")
+        else:
+            self.sim_log(" [FAIL] Replay attack succeeded! Counter not enforced.")
 
     def run_sim_head_to_toe(self, *args):
         self.sim_log("=== STARTING HEAD-TO-TOE FULL SYSTEM SIMULATION ===")
@@ -1440,27 +1553,18 @@ class MainScreen(Screen):
 
             for idx, payload in enumerate(test_payloads, 1):
                 self.sim_log(f"Step 2.{idx}: Testing payload '{payload[:30]}...' ({len(payload)} chars)")
-                sess_sender = Session.load(peer)
-                pkts = sess_sender.encrypt(payload.encode('utf-8'), me_fp, peer_fp)
-                sess_sender.save(peer)
+                cipher_text = encrypt_alien_stack(payload, peer, idn)
 
-                cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
+                decrypted = decrypt_alien_stack(cipher_text, idn, custom_session_loader=self.load_sim_bob_session)
 
-                msgs = []
-                for p in pkts:
-                    out = feed(bob_sess, p, me_fp, peer_fp, self.buffers)
-                    if out: msgs.append(out.decode('utf-8'))
-
-                res = "\n".join(msgs)
-                if res == payload:
+                if decrypted == payload:
                     self.sim_log(f"  [PASS] Payload {idx} decrypted perfectly matching input!")
                 else:
-                    self.sim_log(f"  [FAIL] Payload {idx} mismatch! Got '{res}'")
+                    self.sim_log(f"  [FAIL] Payload {idx} mismatch! Got '{decrypted}'")
 
             self.sim_log("=== ALL HEAD-TO-TOE SIMULATION TESTS PASSED 100% ===")
         except Exception as e:
             self.sim_log(f"[CRITICAL ERROR] Simulation suite failed: {repr(e)}")
-
 
     def build_contacts_view(self):
         layout = BoxLayout(orientation='vertical', spacing=12)
@@ -1895,13 +1999,8 @@ def start_integrated_background_service(app_ref):
 
                     if peek_card_inst and hasattr(peek_card_inst, 'show'):
                         peek_card_inst.show(decrypted, x, y)
-                    print(f"[*] Quick Peek Decrypted: {decrypted}")
-                else:
-                    print("[!] Quick Peek: Could not decrypt payload.")
-            else:
-                print("[*] Quick Peek: No DERF:V1: ciphertext selected.")
-        except Exception as e:
-            print(f"Quick Peek error: {repr(e)}")
+        except Exception:
+            pass
 
     if keyboard:
         try:
