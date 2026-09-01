@@ -69,8 +69,13 @@ def draw_rounded_rect(canvas, x1, y1, x2, y2, radius=12, **kwargs):
 
 class PeekCard:
     def __init__(self):
+        self.root = None
+        self.canvas = None
+        self.label = None
+        self._timer_id = None
+
+    def init_ui(self):
         if not tk:
-            self.root = None
             return
         self.root = tk.Tk()
         self.root.title("Derf Peek Glass")
@@ -112,13 +117,17 @@ class PeekCard:
         self.label.bind('<Button-1>', lambda e: self.hide())
 
         self.root.withdraw()
-        self._timer_id = None
+
+    def run(self):
+        self.init_ui()
+        if self.root:
+            self.root.mainloop()
 
     def show(self, text, x, y):
         if not self.root:
             print(f"[DERF PEEK] {text}")
             return
-        # Thread-safe dispatch
+        # Thread-safe dispatch on Tkinter event loop
         self.root.after(0, lambda: self._show_impl(text, x, y))
 
     def _show_impl(self, text, x, y):
@@ -158,10 +167,6 @@ class PeekCard:
     def hide(self):
         if self.root:
             self.root.withdraw()
-
-    def run(self):
-        if self.root:
-            self.root.mainloop()
 
 # ================= DECRYPTION ENGINE =================
 def decrypt_payload(raw_block):

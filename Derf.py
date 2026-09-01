@@ -1769,7 +1769,7 @@ if IS_WINDOWS:
     VK_RSHIFT = 0xA1
     KEYEVENTF_KEYUP = 0x0002
 
-    def trigger_copy_native():
+    def release_modifiers_native():
         user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
         user32.keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, 0)
         user32.keybd_event(VK_RALT, 0, KEYEVENTF_KEYUP, 0)
@@ -1777,6 +1777,11 @@ if IS_WINDOWS:
         user32.keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0)
         user32.keybd_event(VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0)
         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        for ch in [ord('Q'), ord('q'), ord('D'), ord('d'), ord('E'), ord('e')]:
+            user32.keybd_event(ch, 0, KEYEVENTF_KEYUP, 0)
+
+    def trigger_copy_native():
+        release_modifiers_native()
         user32.keybd_event(VK_CONTROL, 0, 0, 0)
         user32.keybd_event(ord('C'), 0, 0, 0)
         user32.keybd_event(ord('C'), 0, KEYEVENTF_KEYUP, 0)
@@ -1795,14 +1800,23 @@ if IS_WINDOWS:
         user32.keybd_event(ord('V'), 0, KEYEVENTF_KEYUP, 0)
         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
 else:
+    def release_modifiers_native():
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        for ch in [ord('Q'), ord('q'), ord('D'), ord('d'), ord('E'), ord('e')]:
+            user32.keybd_event(ch, 0, KEYEVENTF_KEYUP, 0)
+
     def trigger_copy_native():
-        if kb_controller:
-            for k in [Key.alt, Key.alt_l, Key.alt_r, Key.shift, Key.shift_l, Key.shift_r, Key.ctrl, Key.ctrl_l, Key.ctrl_r]:
-                try: kb_controller.release(k)
-                except Exception: pass
-            with kb_controller.pressed(Key.ctrl):
-                kb_controller.press('c')
-                kb_controller.release('c')
+        release_modifiers_native()
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
 
     def trigger_paste_native():
         if kb_controller:
@@ -1856,12 +1870,23 @@ def start_integrated_background_service(app_ref):
 
     def do_peek_decrypt():
         try:
+            v_token_path = P(".vault_token")
+            if os.path.exists(v_token_path):
+                try:
+                    raw_v = open(v_token_path, "rb").read()
+                    if len(raw_v) == 32:
+                        global VAULT
+                        VAULT = raw_v
+                except Exception: pass
+
             trigger_copy_native()
             time.sleep(0.08)
 
             selected_text = safe_paste().strip()
             if selected_text and "DERF:V1:" in selected_text:
-                decrypted = decrypt_alien_stack(selected_text, app_ref.idn, custom_session_loader=app_ref.main_screen.load_sim_bob_session)
+                raw_idn = vload(P("lc_identity.json"))
+                idn = norm_identity(raw_idn)
+                decrypted = decrypt_alien_stack(selected_text, idn, custom_session_loader=load_sim_bob_session_standalone)
                 if decrypted:
                     x, y = 200, 200
                     if IS_WINDOWS:
