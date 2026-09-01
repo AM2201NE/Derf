@@ -157,7 +157,18 @@ class PeekCard:
 
         self.root.geometry(f"+{final_x}+{final_y}")
         self.root.deiconify()
-        self.root.focus_force()
+
+        # Enforce Win32 HWND_TOPMOST z-order layer above all opened apps
+        if IS_WIN32:
+            try:
+                hwnd = win32gui.GetParent(self.root.winfo_id())
+                win32gui.SetWindowPos(
+                    hwnd, win32con.HWND_TOPMOST,
+                    final_x, final_y, req_w, req_h,
+                    win32con.SWP_SHOWWINDOW
+                )
+            except Exception as e:
+                print(f"SetWindowPos error: {e}")
 
         if self._timer_id:
             try: self.root.after_cancel(self._timer_id)

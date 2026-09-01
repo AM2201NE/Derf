@@ -1830,7 +1830,7 @@ else:
 _bg_hotkey_lock = threading.Lock()
 
 def start_integrated_background_service(app_ref):
-    """Integrated Desktop & Android Background Service (Hotkeys + Quick Peek + Clipboard Monitor)."""
+    """Integrated Desktop & Android Background Service (Hotkeys + Quick Peek Glass Overlay)."""
     peek_card_inst = None
     try:
         import derf_peek
@@ -1861,8 +1861,6 @@ def start_integrated_background_service(app_ref):
 
             time.sleep(0.02)
             trigger_paste_native()
-
-            # Notification removed per request
         except Exception as e:
             print(f"Hotkey BG error: {repr(e)}")
         finally:
@@ -1897,8 +1895,6 @@ def start_integrated_background_service(app_ref):
 
                     if peek_card_inst and hasattr(peek_card_inst, 'show'):
                         peek_card_inst.show(decrypted, x, y)
-                    else:
-                        Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup("🔓 DERF DECRYPTED", decrypted))
                     print(f"[*] Quick Peek Decrypted: {decrypted}")
                 else:
                     print("[!] Quick Peek: Could not decrypt payload.")
@@ -1929,9 +1925,6 @@ def start_integrated_background_service(app_ref):
                     last_clip = clip_text
                     if not hasattr(app_ref, 'idn') or not app_ref.idn: continue
                     dec_msg = decrypt_alien_stack(clip_text, app_ref.idn, custom_session_loader=app_ref.main_screen.load_sim_bob_session)
-                    if dec_msg:
-                        Clock.schedule_once(lambda dt: app_ref.main_screen.show_popup("Decrypted Message", dec_msg))
-                        # Notification removed per request
             except Exception:
                 pass
 
