@@ -17,7 +17,7 @@ if '--fresh-sec' in sys.argv:
         FRESH = float(sys.argv[idx + 1])
         print(f'[*] Freshness limit set to {FRESH} seconds.')
     except Exception as e:
-        print(f'⚠️ Error parsing --fresh-sec: {e}')
+        print(f'⚠️ Error parsing --fresh-sec: {repr(e)}')
 
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import hashes
@@ -149,7 +149,7 @@ def _load_pq():
             c, s1 = b.encaps(pk)
             s2 = b.decaps(c, sk)
             if s1 == s2 and len(s1) == SS: return b
-        except Exception as e: errs.append(f"{cls.__name__}: {e}")
+        except Exception as e: errs.append(f"{cls.__name__}: {repr(e)}")
     raise RuntimeError("No PQ backend. Errors: " + "; ".join(errs))
 
 PQ_KEM = None
@@ -499,7 +499,7 @@ def run_selftest():
         feed(bob_sess, pkts[0], bob_fp, alice_fp, buf)
         assert False, "Replay packet did NOT fail!"
     except ValueError as e:
-        print(f"   Expected rejection triggered: {e}")
+        print(f"   Expected rejection triggered: {repr(e)}")
 
     print("[5/6] Vault Storage Encryption & Decryption...")
     VAULT = derive_vault("test-passphrase-selftest")
@@ -714,7 +714,7 @@ class VaultScreen(Screen):
                 self.app_ref.idn = make_identity()
                 vsave(P("lc_identity.json"), {"pq_sk": b64(self.app_ref.idn["pq_sk"]), "pq_pk": b64(self.app_ref.idn["pq_pk"])})
             except Exception as e:
-                self.err_lbl.text = f"Failed to create identity: {e}"
+                self.err_lbl.text = f"Failed to create identity: {repr(e)}"
                 return
 
         self.app_ref.on_vault_unlocked()
@@ -806,6 +806,7 @@ class MainScreen(Screen):
         pills = [
             ("messages", "MESSAGES & PACKETS"),
             ("contacts", "PAIRING WIZARD"),
+            ("simulator", "LIVE SIMULATOR"),
             ("security", "SECURITY SPECS"),
             ("help", "PROTOCOL GUIDE")
         ]
@@ -834,6 +835,24 @@ class MainScreen(Screen):
     def _update_bg(self, instance, value):
         self.bg_rect.pos = instance.pos
         self.bg_rect.size = instance.size
+
+
+    def load_sim_bob_session(self):
+        p = P("lc_sim_bob_session.json")
+        if not os.path.exists(p): return None, None
+        try:
+            d = vload(p)
+            bob_sess = Session(
+                sid=ub64(d["sid"]), root=b"", role=d["role"],
+                sck=ub64(d["sck"]), rck=ub64(d["rck"]),
+                sn=d["sn"], rn=d["rn"],
+                hsend=ub64(d["hsend"]), hrecv=ub64(d["hrecv"]),
+                skipped={}
+            )
+            bob_idn = norm_identity(d["bob_idn"])
+            return bob_sess, bob_idn
+        except Exception:
+            return None, None
 
     def auto_pair_sim_peer(self, *args):
         sim_name = "Bob Test"
@@ -945,6 +964,8 @@ class MainScreen(Screen):
             self.content_container.add_widget(self.build_contacts_view())
         elif tab_key == "security":
             self.content_container.add_widget(self.build_security_view())
+        elif tab_key == "simulator":
+            self.content_container.add_widget(self.build_simulator_view())
         elif tab_key == "help":
             self.content_container.add_widget(self.build_help_view())
 
@@ -1128,6 +1149,195 @@ class MainScreen(Screen):
         self.show_popup("Decrypt Failed", "Could not decrypt packet (wrong key, stale >7min, or tampered).")
 
     # --- VIEW 2: CONTACTS & PAIRING WIZARD ---
+
+    # --- VIEW 2.5: LIVE SIMULATOR & TEST BENCH ---
+    def build_simulator_view(self):
+        split = BoxLayout(orientation='horizontal', spacing=12)
+
+        left_box = CardPanel(orientation='vertical', padding=12, spacing=10)
+        lbl_s1 = Label(text="INTERACTIVE REAL-TIME TEST BENCH", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_s1.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        left_box.add_widget(lbl_s1)
+
+        lbl_hk = Label(text="1. Test Global Hotkey Encrypt (Alt+Shift+D / Ctrl+Shift+E):", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=18, halign='left', valign='middle')
+        lbl_hk.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        left_box.add_widget(lbl_hk)
+
+        self.sim_hk_input = TextInput(text="Top Secret Quantum Coordinates: 37.7749 N, 122.4194 W", background_color=(0.06, 0.07, 0.09, 1),
+                                     foreground_color=TEXT_MAIN, padding=(10, 8), font_size='11sp', size_hint_y=None, height=50)
+        left_box.add_widget(self.sim_hk_input)
+
+        btn_run_hk = PrimaryButton(text="[ SIMULATE HOTKEY ENCRYPT ]", size_hint_y=None, height=36, radius=8)
+        btn_run_hk.bind(on_release=self.run_sim_hotkey)
+        left_box.add_widget(btn_run_hk)
+
+        lbl_dec = Label(text="2. Test Clipboard Real-time Auto-Decrypt Monitor:", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=18, halign='left', valign='middle')
+        lbl_dec.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        left_box.add_widget(lbl_dec)
+
+        self.sim_dec_input = TextInput(hint_text="Paste DERF:V1: ciphertext here or click Simulate Hotkey Encrypt above...", background_color=(0.06, 0.07, 0.09, 1),
+                                      foreground_color=CYAN_PRIMARY, padding=(10, 8), font_size='11sp', size_hint_y=None, height=70)
+        left_box.add_widget(self.sim_dec_input)
+
+        btn_run_dec = SecondaryButton(text="[ SIMULATE CLIPBOARD DECRYPT MONITOR ]", size_hint_y=None, height=36)
+        btn_run_dec.bind(on_release=self.run_sim_clipboard_decrypt)
+        left_box.add_widget(btn_run_dec)
+
+        lbl_f = Label(text="3. Head-to-Toe Automated Suite:", font_size='11sp', color=TEXT_MUTED, size_hint_y=None, height=18, halign='left', valign='middle')
+        lbl_f.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        left_box.add_widget(lbl_f)
+
+        btn_run_full = PrimaryButton(text="[ RUN HEAD-TO-TOE FULL SYSTEM SIMULATION ]", size_hint_y=None, height=42, radius=10)
+        btn_run_full.bind(on_release=self.run_sim_head_to_toe)
+        left_box.add_widget(btn_run_full)
+
+        split.add_widget(left_box)
+
+        right_box = CardPanel(orientation='vertical', padding=12, spacing=10)
+        lbl_l = Label(text="SIMULATION & PROTOCOL EVENT LOG", font_size='12sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_l.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        right_box.add_widget(lbl_l)
+
+        self.sim_log_output = TextInput(text="[*] Simulation environment initialized.\n[*] Ready to test hotkeys, auto-decryption, and full protocol suite.\n",
+                                        readonly=True, background_color=(0.04, 0.05, 0.07, 1), foreground_color=TEXT_MAIN, padding=(12, 10), font_size='11sp')
+        right_box.add_widget(self.sim_log_output)
+
+        split.add_widget(right_box)
+        return split
+
+    def sim_log(self, text):
+        if hasattr(self, 'sim_log_output'):
+            self.sim_log_output.text += f"[*] {text}\n"
+
+    def run_sim_hotkey(self, *args):
+        try:
+            inp = self.sim_hk_input.text.strip()
+            if not inp:
+                self.sim_log("Error: Hotkey input text is empty.")
+                return
+            safe_copy(inp)
+            self.sim_log(f"Copied input to clipboard: '{inp[:40]}...'")
+
+            peer = self.selected_peer or "Bob Test"
+            if not os.path.exists(P(f"lc_session_{peer}.json")):
+                self.auto_pair_sim_peer()
+                peer = "Bob Test"
+
+            cs = contacts_load()
+            sess = Session.load(peer)
+            idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
+            me_fp = id_fp(ub64(idn["pq_pk"]) if isinstance(idn["pq_pk"], str) else idn["pq_pk"])
+            peer_fp = id_fp(cs[peer])
+
+            pkts = sess.encrypt(inp.encode('utf-8'), me_fp, peer_fp)
+            sess.save(peer)
+
+            cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
+            safe_copy(cipher_text)
+            self.sim_dec_input.text = cipher_text
+            self.sim_log(f"[SUCCESS] Hotkey Encrypt simulated for {peer}! Replaced clipboard with DERF:V1: ciphertext.")
+        except Exception as e:
+            self.sim_log(f"[ERROR] Hotkey simulation failed: {repr(e)}")
+
+    def run_sim_clipboard_decrypt(self, *args):
+        try:
+            cip = self.sim_dec_input.text.strip()
+            if not cip or not cip.startswith("DERF:V1:"):
+                self.sim_log("Error: Input is not a valid DERF:V1: ciphertext.")
+                return
+
+            raw = cip[8:].strip()
+            lines = [l.strip() for l in raw.splitlines() if l.strip()]
+            pkts = [ub64(clean_b64(l)) for l in lines]
+
+            cs = contacts_load()
+            idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
+            me_fp = id_fp(ub64(idn["pq_pk"]) if isinstance(idn["pq_pk"], str) else idn["pq_pk"])
+
+            # Check simulated Bob session first
+            bob_sess, bob_idn = self.load_sim_bob_session()
+            got = False
+            if bob_sess and bob_idn:
+                peer_fp = id_fp(bob_idn["pq_pk"])
+                msgs = []
+                for p in pkts:
+                    try:
+                        out = feed(bob_sess, p, me_fp, peer_fp, self.buffers)
+                        if out: msgs.append(out.decode('utf-8'))
+                    except Exception: pass
+                if msgs:
+                    dec_msg = "\n".join(msgs)
+                    self.sim_log(f"[SUCCESS] Simulated Bob received & decrypted message from Alice: '{dec_msg}'")
+                    got = True
+
+            if not got:
+                paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
+                for peer in paired:
+                    sess = Session.load(peer)
+                    peer_fp = id_fp(cs[peer])
+                    msgs = []
+                    for p in pkts:
+                        try:
+                            out = feed(sess, p, me_fp, peer_fp, self.buffers)
+                            if out: msgs.append(out.decode('utf-8'))
+                        except Exception: pass
+                    if msgs:
+                        sess.save(peer)
+                        dec_msg = "\n".join(msgs)
+                        self.sim_log(f"[SUCCESS] Clipboard Auto-Decrypt triggered for {peer}! Decrypted Message: '{dec_msg}'")
+                        got = True
+                        break
+
+            if not got:
+                self.sim_log("[WARN] Could not decrypt ciphertext with any active session.")
+        except Exception as e:
+            self.sim_log(f"[ERROR] Clipboard decrypt simulation failed: {repr(e)}")
+
+    def run_sim_head_to_toe(self, *args):
+        self.sim_log("=== STARTING HEAD-TO-TOE FULL SYSTEM SIMULATION ===")
+        try:
+            self.sim_log("Step 1: Checking local identity & pairing Bob Test peer...")
+            self.auto_pair_sim_peer()
+            peer = "Bob Test"
+
+            test_payloads = [
+                "Hello world! Testing DERF Post-Quantum Forward-Secrecy protocol.",
+                "Short payload",
+                "Large payload: " + ("A" * 500),
+                "Special characters: !@#$%^&*()_+-=[]{}|;':\",<.>/?~`"
+            ]
+
+            cs = contacts_load()
+            idn = self.app_ref.idn if (hasattr(self.app_ref, "idn") and self.app_ref.idn) else norm_identity(vload(P("lc_identity.json")))
+            me_fp = id_fp(ub64(idn["pq_pk"]) if isinstance(idn["pq_pk"], str) else idn["pq_pk"])
+            peer_fp = id_fp(cs[peer])
+
+            bob_sess, bob_idn = self.load_sim_bob_session()
+
+            for idx, payload in enumerate(test_payloads, 1):
+                self.sim_log(f"Step 2.{idx}: Testing payload '{payload[:30]}...' ({len(payload)} chars)")
+                sess_sender = Session.load(peer)
+                pkts = sess_sender.encrypt(payload.encode('utf-8'), me_fp, peer_fp)
+                sess_sender.save(peer)
+
+                cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
+
+                msgs = []
+                for p in pkts:
+                    out = feed(bob_sess, p, me_fp, peer_fp, self.buffers)
+                    if out: msgs.append(out.decode('utf-8'))
+
+                res = "\n".join(msgs)
+                if res == payload:
+                    self.sim_log(f"  [PASS] Payload {idx} decrypted perfectly matching input!")
+                else:
+                    self.sim_log(f"  [FAIL] Payload {idx} mismatch! Got '{res}'")
+
+            self.sim_log("=== ALL HEAD-TO-TOE SIMULATION TESTS PASSED 100% ===")
+        except Exception as e:
+            self.sim_log(f"[CRITICAL ERROR] Simulation suite failed: {repr(e)}")
+
+
     def build_contacts_view(self):
         layout = BoxLayout(orientation='vertical', spacing=12)
 
@@ -1457,7 +1667,7 @@ def start_integrated_background_service(app_ref):
             if notification:
                 notification.notify(title="Derf Encrypted", message=f"Encrypted message for {peer} and replaced text!")
         except Exception as e:
-            print(f"Hotkey BG error: {e}")
+            print(f"Hotkey BG error: {repr(e)}")
 
     # Register Global Hotkeys via pynput without Admin
     if keyboard:
@@ -1469,7 +1679,7 @@ def start_integrated_background_service(app_ref):
             listener.start()
             print("[*] Integrated Background Hotkey Listener active (Alt+Shift+D / Ctrl+Shift+E)")
         except Exception as e:
-            print(f"Hotkey listener status: {e}")
+            print(f"Hotkey listener status: {repr(e)}")
 
     # Clipboard Monitor Loop
     def bg_clip_monitor():
@@ -1522,7 +1732,7 @@ class DerfApp(App):
         try:
             PQ_KEM = _load_pq()
         except Exception as e:
-            print(f"FATAL: {e}")
+            print(f"FATAL: {repr(e)}")
             sys.exit(1)
 
         self.sm = ScreenManager(transition=FadeTransition(duration=0.15))

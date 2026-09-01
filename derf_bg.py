@@ -1,25 +1,31 @@
+"""
+DERF BACKGROUND SERVICE (Desktop System Tray & High-Performance Layer)
+Uses pynput for non-admin global hotkey listeners & clipboard auto-decryption.
+Optimized for Windows & cross-platform instant hotkey response & auto paste.
+"""
+import os, sys, re, time, threading
+import pyperclip
+
+# Fast local clipboard fallback
 _BG_CLIPBOARD = ""
 
 def safe_clip_copy(text):
     global _BG_CLIPBOARD
     _BG_CLIPBOARD = text
-    try: pyperclip.copy(text)
-    except Exception: pass
+    try:
+        pyperclip.copy(text)
+    except Exception:
+        pass
 
 def safe_clip_paste():
     global _BG_CLIPBOARD
     try:
         val = pyperclip.paste()
-        if val: return val
-    except Exception: pass
+        if val is not None:
+            return val
+    except Exception:
+        pass
     return _BG_CLIPBOARD
-
-"""
-DERF BACKGROUND SERVICE (Desktop System Tray & Invisible Layer)
-Uses pynput for non-admin global hotkey listeners & clipboard auto-decryption.
-"""
-import os, sys, re, time, threading
-import pyperclip
 
 # Import core crypto logic from Derf without starting Kivy GUI
 from Derf import (
@@ -68,17 +74,38 @@ def get_first_paired_peer():
     paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
     return paired[0] if paired else None
 
+_hotkey_busy = False
+
 def do_hotkey_encrypt():
-    global ACTIVE_PEER
+    global ACTIVE_PEER, _hotkey_busy
+    if _hotkey_busy:
+        return
+    _hotkey_busy = True
     try:
         load_background_vault()
 
-        # Simulate Ctrl+C to copy selected text
+        # Instant release of held modifiers so Windows/OS registers Ctrl+C cleanly
         if kb_controller:
+            try:
+                kb_controller.release(Key.alt)
+                kb_controller.release(Key.alt_l)
+                kb_controller.release(Key.alt_r)
+                kb_controller.release(Key.shift)
+                kb_controller.release(Key.shift_l)
+                kb_controller.release(Key.shift_r)
+                kb_controller.release(Key.ctrl)
+                kb_controller.release(Key.ctrl_l)
+                kb_controller.release(Key.ctrl_r)
+            except Exception:
+                pass
+
+            time.sleep(0.02)
+
+            # Simulate Ctrl+C to copy selected text instantly
             with kb_controller.pressed(Key.ctrl):
                 kb_controller.press('c')
                 kb_controller.release('c')
-            time.sleep(0.2)
+            time.sleep(0.08)
 
         selected_text = safe_clip_paste().strip()
         if not selected_text or selected_text.startswith("DERF:V1:"):
@@ -88,6 +115,7 @@ def do_hotkey_encrypt():
         if not peer:
             if notification:
                 notification.notify(title="Derf Background", message="No paired contacts found for encryption.")
+            print("[DERF BG] No paired contact available.")
             return
 
         cs = contacts_load()
@@ -103,9 +131,9 @@ def do_hotkey_encrypt():
         cipher_text = "DERF:V1:\n" + "\n".join(b64(p) for p in pkts)
         safe_clip_copy(cipher_text)
 
-        # Simulate Ctrl+V to paste encrypted text back
+        # Simulate Ctrl+V to paste encrypted text back instantly
         if kb_controller:
-            time.sleep(0.1)
+            time.sleep(0.05)
             with kb_controller.pressed(Key.ctrl):
                 kb_controller.press('v')
                 kb_controller.release('v')
@@ -113,18 +141,20 @@ def do_hotkey_encrypt():
         if notification:
             notification.notify(
                 title="Derf Encrypted",
-                message=f"Encrypted message for {peer} and replaced text!"
+                message=f"Encrypted message for {peer} & replaced in place!"
             )
-        print(f"[DERF BG] Successfully encrypted text for {peer}!")
+        print(f"[DERF BG] Encrypted & replaced text for {peer} instantly!")
     except Exception as e:
         print(f"[DERF BG Error] Hotkey encrypt: {e}")
+    finally:
+        _hotkey_busy = False
 
 def monitor_clipboard_loop():
     last_clip = ""
     pattern = re.compile(r"^DERF:V1:[A-Za-z0-9+/=\n\r\s]{50,}$")
     while True:
         try:
-            time.sleep(0.5)
+            time.sleep(0.2)
             load_background_vault()
             clip_text = safe_clip_paste().strip()
             if clip_text and clip_text != last_clip and pattern.match(clip_text):
@@ -146,8 +176,11 @@ def monitor_clipboard_loop():
                     for p in pkts:
                         try:
                             out = feed(sess, p, me_fp, peer_fp, BUFFERS)
-                            if out: msgs.append(out.decode('utf-8')); got += 1
-                        except Exception: pass
+                            if out:
+                                msgs.append(out.decode('utf-8'))
+                                got += 1
+                        except Exception:
+                            pass
                     if got:
                         sess.save(peer)
                         dec_msg = "\n".join(msgs)
@@ -181,7 +214,7 @@ def create_tray_icon():
     return pystray.Icon("Derf", img, "Derf Background Service", menu)
 
 def main():
-    print("[*] Starting Derf Background Service...")
+    print("[*] Starting High-Performance Derf Background Service...")
     load_background_vault()
 
     # Start Clipboard Monitor Thread
@@ -205,7 +238,6 @@ def main():
     if icon:
         icon.run()
     else:
-        # Keep main thread alive permanently
         print("[*] Derf Background Service running. Press Ctrl+C to stop.")
         stop_event = threading.Event()
         try:
