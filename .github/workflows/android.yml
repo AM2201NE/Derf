@@ -1,108 +1,67 @@
 ﻿name: Build Derf Android APK
 
 on:
-  workflow_dispatch: # Allows you to trigger the build manually from the GitHub Actions tab
+  workflow_dispatch: # Allows manual triggering
   push:
     branches:
       - main
       - android-build-512a1be
+
+env:
+  # Prevents interactive prompts during p4a prerequisite installation
+  PYTHONFORANDROID_PREREQUISITES_INSTALL_INTERACTIVE: 0
 
 jobs:
   build:
     name: Build Derf APK
     runs-on: ubuntu-latest
 
-    # Use the official Buildozer Docker image
-    container:
-      image: ghcr.io/kivy/buildozer:latest
-
-    env:
-      ANDROID_HOME: /github/home/.buildozer/android/platform/android-sdk
-      ANDROID_SDK_ROOT: /github/home/.buildozer/android/platform/android-sdk
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare Android SDK
-        shell: bash
-        run: |
-          set -e
-          SDK="$ANDROID_HOME"
-          
-          echo "========================================"
-          echo "Setting up Android SDK at $SDK"
-          echo "========================================"
-          
-          rm -rf "$SDK"
-          mkdir -p "$SDK/cmdline-tools"
-          mkdir -p "$SDK/tools/bin"
-          
-          # Download Android command-line tools
-          python3 - <<'PY'
-          import urllib.request
-          url = "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
-          output = "/tmp/cmdline-tools.zip"
-          print("Downloading Android command-line tools...")
-          urllib.request.urlretrieve(url, output)
-          print("Download complete.")
-          PY
-          
-          echo "Extracting command-line tools..."
-          unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
-          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
-          
-          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          
-          # Buildozer expects the legacy SDK manager location
-          ln -sf "$SDK/cmdline-tools/latest/bin/sdkmanager" "$SDK/tools/bin/sdkmanager"
-          
-          echo "Accepting Android licenses..."
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          
-          echo "Installing Android packages..."
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;33.0.2"
-            
-          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Build APK with Buildozer
-        shell: bash
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Buildozer directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec', 'requirements.txt') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Install Python dependencies
         run: |
-          set -e
-          echo "========================================"
-          echo "Starting Buildozer Android build"
-          echo "========================================"
-          
+          python -m pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y automake libltdl-dev
+
+      - name: Build APK
+        run: |
           if [ ! -f "buildozer.spec" ]; then
-            echo "Error: buildozer.spec not found!"
+            echo "Error: buildozer.spec not found in root directory!"
             exit 1
           fi
           
-          # Run buildozer debug build
+          echo "Starting Buildozer Android debug build..."
           buildozer android debug
-          
-          echo "========================================"
-          echo "Buildozer finished"
-          echo "========================================"
-
-      - name: Find and Verify APK
-        shell: bash
-        run: |
-          echo "========================================"
-          echo "Searching for generated APK files"
-          echo "========================================"
-          find bin -type f -name "*.apk" || echo "No APK found in bin/"
-          find . -type f -name "*.apk" # Fallback search
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: derf-android-apk
-          path: |
-            bin/*.apk
-            .buildozer/android/platform/build-arm64-v8a_armeabi-v7a/dists/derf__arm64-v8a/bin/*.apk
+          path: bin/*.apk
           if-no-files-found: error
