@@ -1,4 +1,4 @@
-name: Build Derf Android APK
+﻿name: Build Derf Android APK
 
 on:
   workflow_dispatch:
@@ -185,3 +185,4 @@ mkdir -p "$SDK/tools/bin"
           name: derf-android-apk
           path: bin/*.apk
           if-no-files-found: error
+
