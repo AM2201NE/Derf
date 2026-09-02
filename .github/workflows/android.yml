@@ -1,4 +1,4 @@
-﻿name: Build Derf Android APK
+name: Build Derf Android APK
 
 on:
   workflow_dispatch:
@@ -40,6 +40,7 @@ jobs:
           rm -rf "$SDK"
 
           mkdir -p "$SDK/cmdline-tools"
+mkdir -p "$SDK/tools/bin"
 
           python3 - <<'PY'
           import urllib.request
@@ -61,6 +62,9 @@ jobs:
             "$SDK/cmdline-tools/latest"
 
           SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+
+          # Buildozer currently expects the legacy SDK manager location.
+          ln -sf "$SDK/cmdline-tools/latest/bin/sdkmanager" "$SDK/tools/bin/sdkmanager"
 
           echo "========================================"
           echo "Checking SDK manager files"
@@ -113,6 +117,9 @@ jobs:
 
           SDK="$ANDROID_HOME"
           SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+
+          # Buildozer currently expects the legacy SDK manager location.
+          ln -sf "$SDK/cmdline-tools/latest/bin/sdkmanager" "$SDK/tools/bin/sdkmanager"
 
           echo "========================================"
           echo "Verifying Android SDK"
