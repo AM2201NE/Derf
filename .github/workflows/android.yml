@@ -2,6 +2,7 @@
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
@@ -31,6 +32,11 @@ jobs:
 
           SDK="$ANDROID_HOME"
 
+          echo "========================================"
+          echo "Preparing Android SDK"
+          echo "SDK: $SDK"
+          echo "========================================"
+
           mkdir -p "$SDK/cmdline-tools"
 
           python3 - <<'PY'
@@ -40,24 +46,33 @@ jobs:
           output = "/tmp/cmdline-tools.zip"
 
           print("Downloading Android command-line tools...")
+          print(url)
+
           urllib.request.urlretrieve(url, output)
 
           print("Download complete.")
           PY
 
+          echo "Extracting Android command-line tools..."
+
           unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
 
           rm -rf "$SDK/cmdline-tools/latest"
 
-          mv "$SDK/cmdline-tools/cmdline-tools" \
-             "$SDK/cmdline-tools/latest"
+          mv \
+            "$SDK/cmdline-tools/cmdline-tools" \
+            "$SDK/cmdline-tools/latest"
 
           export PATH="$SDK/cmdline-tools/latest/bin:$SDK/platform-tools:$PATH"
 
           echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
 
+          echo "Accepting Android SDK licenses..."
+
           yes | sdkmanager --licenses >/dev/null || true
+
+          echo "Installing Android SDK packages..."
 
           sdkmanager \
             "platform-tools" \
@@ -66,11 +81,17 @@ jobs:
             "build-tools;35.0.0" \
             "build-tools;37.0.0"
 
+          echo "Creating Buildozer compatibility path..."
+
           mkdir -p "$SDK/tools"
 
-          ln -sf \
+          ln -sfn \
             "$SDK/cmdline-tools/latest/bin" \
             "$SDK/tools/bin"
+
+          echo "========================================"
+          echo "Android SDK preparation complete"
+          echo "========================================"
 
       - name: Verify Android SDK
         shell: bash
@@ -79,29 +100,60 @@ jobs:
 
           SDK="$ANDROID_HOME"
 
-          echo "SDK: $SDK"
+          echo "========================================"
+          echo "ANDROID_HOME"
+          echo "$ANDROID_HOME"
+          echo "========================================"
+
+          echo "Checking sdkmanager..."
 
           "$SDK/tools/bin/sdkmanager" --version
 
-          echo "Installed build tools:"
+          echo "Checking Android platforms..."
+
+          ls -la "$SDK/platforms"
+
+          echo "Checking Android build-tools..."
+
           ls -la "$SDK/build-tools"
 
-          echo "AIDL:"
+          echo "Searching for aidl..."
+
           find "$SDK/build-tools" \
             -name aidl \
             -type f \
             -print
 
+          echo "========================================"
+          echo "Android SDK verification passed"
+          echo "========================================"
+
       - name: Build APK
         shell: bash
         run: |
           set -e
+
+          echo "========================================"
+          echo "Starting Buildozer Android build"
+          echo "========================================"
+
           buildozer android debug
+
+          echo "========================================"
+          echo "Buildozer finished"
+          echo "========================================"
 
       - name: Find APK
         shell: bash
         run: |
-          find bin -type f -name "*.apk" -print
+          echo "========================================"
+          echo "APK files"
+          echo "========================================"
+
+          find bin \
+            -type f \
+            -name "*.apk" \
+            -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
