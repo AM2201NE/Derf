@@ -6,12 +6,12 @@ source.dir = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,txt,zdict,java
 version = 1.0.0
 
-requirements = python3,kivy,cryptography,kyber-py,zstandard,pyjnius,plyer,pillow
+# PINNED VERSIONS FOR STABLE ANDROID BUILDS
+requirements = python3==3.11.8,kivy,cryptography,kyber-py,zstandard,pyjnius,plyer,pillow==10.4.0
 
 orientation = portrait
 fullscreen = 0
 
-# API 24+ is required to resolve the preadv/pwritev NDK compilation error
 android.minapi = 24
 android.api = 33
 android.ndk = 25b
@@ -19,8 +19,6 @@ android.archs = arm64-v8a, armeabi-v7a
 
 android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS
 android.add_src = DerfAccessibilityService.java
-
-# IMPORTANT: Auto-accept SDK licenses in GitHub Actions
 android.accept_sdk_license = True
 
 [buildozer]
