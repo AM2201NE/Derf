@@ -33,9 +33,11 @@ jobs:
           SDK="$ANDROID_HOME"
 
           echo "========================================"
-          echo "Preparing Android SDK"
-          echo "SDK: $SDK"
+          echo "ANDROID_HOME"
+          echo "$SDK"
           echo "========================================"
+
+          rm -rf "$SDK"
 
           mkdir -p "$SDK/cmdline-tools"
 
@@ -46,52 +48,63 @@ jobs:
           output = "/tmp/cmdline-tools.zip"
 
           print("Downloading Android command-line tools...")
-          print(url)
-
           urllib.request.urlretrieve(url, output)
-
           print("Download complete.")
           PY
 
-          echo "Extracting Android command-line tools..."
+          echo "Extracting command-line tools..."
 
           unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
-
-          rm -rf "$SDK/cmdline-tools/latest"
 
           mv \
             "$SDK/cmdline-tools/cmdline-tools" \
             "$SDK/cmdline-tools/latest"
 
-          export PATH="$SDK/cmdline-tools/latest/bin:$SDK/platform-tools:$PATH"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 
-          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "========================================"
+          echo "Checking SDK manager files"
+          echo "========================================"
 
-          echo "Accepting Android SDK licenses..."
+          test -f "$SDKMANAGER"
+          test -d "$SDK/cmdline-tools/latest/lib"
 
-          yes | sdkmanager --licenses >/dev/null || true
+          ls -la "$SDK/cmdline-tools/latest/bin"
+          echo ""
+          ls -la "$SDK/cmdline-tools/latest/lib"
 
-          echo "Installing Android SDK packages..."
+          echo "========================================"
+          echo "SDK manager version"
+          echo "========================================"
 
-          sdkmanager \
+          "$SDKMANAGER" --version
+
+          echo "========================================"
+          echo "Accepting Android licenses"
+          echo "========================================"
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+
+          echo "========================================"
+          echo "Installing Android packages"
+          echo "========================================"
+
+          "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-33" \
             "build-tools;33.0.2" \
             "build-tools;35.0.0" \
             "build-tools;37.0.0"
 
-          echo "Creating Buildozer compatibility path..."
-
-          mkdir -p "$SDK/tools"
-
-          ln -sfn \
-            "$SDK/cmdline-tools/latest/bin" \
-            "$SDK/tools/bin"
-
           echo "========================================"
-          echo "Android SDK preparation complete"
+          echo "Android SDK installed"
           echo "========================================"
+
+          echo "SDK contents:"
+          find "$SDK" -maxdepth 2 -type d | sort | head -100
+
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
 
       - name: Verify Android SDK
         shell: bash
@@ -99,31 +112,35 @@ jobs:
           set -e
 
           SDK="$ANDROID_HOME"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 
           echo "========================================"
-          echo "ANDROID_HOME"
-          echo "$ANDROID_HOME"
+          echo "Verifying Android SDK"
           echo "========================================"
 
-          echo "Checking sdkmanager..."
+          echo "sdkmanager:"
+          command -v sdkmanager || true
 
-          "$SDK/tools/bin/sdkmanager" --version
+          echo ""
+          echo "SDK manager version:"
+          "$SDKMANAGER" --version
 
-          echo "Checking Android platforms..."
-
+          echo ""
+          echo "Platforms:"
           ls -la "$SDK/platforms"
 
-          echo "Checking Android build-tools..."
-
+          echo ""
+          echo "Build tools:"
           ls -la "$SDK/build-tools"
 
-          echo "Searching for aidl..."
-
+          echo ""
+          echo "AIDL:"
           find "$SDK/build-tools" \
-            -name aidl \
             -type f \
+            -name aidl \
             -print
 
+          echo ""
           echo "========================================"
           echo "Android SDK verification passed"
           echo "========================================"
