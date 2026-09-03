@@ -45,13 +45,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y automake libltdl-dev pkg-config cmake
 
-      - name: Build APK (with full log capture)
+      - name: Build APK (with automatic error printing)
         shell: bash
         run: |
-          set -o pipefail
           echo "Starting Buildozer Android debug build..."
-          # This saves the full output to a file while still printing to the console
+          
+          # Run buildozer and save output to a file while printing to console
           buildozer android debug 2>&1 | tee buildozer.log
+          
+          # Check if buildozer failed (PIPESTATUS[0] gets the exit code of buildozer, not tee)
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo ""
+            echo "============================================================"
+            echo "❌ BUILD FAILED! HERE ARE THE LAST 100 LINES OF THE LOG:"
+            echo "============================================================"
+            tail -n 100 buildozer.log
+            echo "============================================================"
+            exit 1
+          fi
+          
+          echo "✅ Build completed successfully!"
 
       - name: Upload APK Artifact
         if: success()
@@ -60,11 +73,3 @@ jobs:
           name: derf-android-apk
           path: bin/*.apk
           if-no-files-found: error
-
-      - name: Upload Full Build Log (Always runs, even on failure)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: buildozer-full-log
-          path: buildozer.log
-          if-no-files-found: ignore
