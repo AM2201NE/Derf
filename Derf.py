@@ -97,9 +97,17 @@ if os.path.exists(DICT_PATH):
 
 def clean_ciphertext_input(text):
     if not text: return ""
-    for inv in ['\u200b', '\u200c', '\u200d', '\ufeff', '\u00a0', '\r']:
-        text = text.replace(inv, '')
-    return text.strip('`').strip()
+    import html
+    text = html.unescape(text)
+    text = re.sub(r'<[^>]+>', '', text)
+    replacements = {
+        '’': "'", '‘': "'", '“': '"', '”': '"',
+        '–': '-', '—': '-', '\u200b': '', '\u200c': '',
+        '\u200d': '', '\ufeff': '', '\u00a0': '', '\r': ''
+    }
+    for k, v in replacements.items():
+        text = text.replace(k, v)
+    return text.strip()
 
 
 def smart_split_text(text, max_chars=350):
@@ -157,7 +165,7 @@ def encrypt_alien_stack(text, peer, idn_data):
 
         pkts = sess.encrypt(chunk_bytes, me_fp, peer_fp)
         combined_binary = b"".join(pkts)
-        encoded_str = base64.b85encode(combined_binary).decode('ascii')
+        encoded_str = base64.b64encode(combined_binary).decode('ascii')
 
         prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
         encrypted_outputs.append(prefix + encoded_str)
@@ -169,9 +177,19 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
     if not raw_text: return None
     raw_text = clean_ciphertext_input(raw_text)
 
-    raw_chunks = re.split(r'\n\s*\n', raw_text.strip())
-    if len(raw_chunks) == 1:
-        raw_chunks = raw_text.strip().split('\n')
+    pattern = re.compile(r'DERF:V1:(?:C:|R:)?')
+    matches = list(pattern.finditer(raw_text))
+
+    raw_chunks = []
+    if matches:
+        for i in range(len(matches)):
+            start_idx = matches[i].start()
+            end_idx = matches[i + 1].start() if i + 1 < len(matches) else len(raw_text)
+            raw_chunks.append(raw_text[start_idx:end_idx].strip())
+    else:
+        raw_chunks = re.split(r'\n\s*\n', raw_text.strip())
+        if len(raw_chunks) == 1:
+            raw_chunks = raw_text.strip().split('\n')
 
     cs = contacts_load()
     me_pk = ub64(idn_data["pq_pk"]) if isinstance(idn_data["pq_pk"], str) else idn_data["pq_pk"]
@@ -182,6 +200,9 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
         raw_block = raw_block.strip()
         if not raw_block: continue
 
+        # Strip leading markdown formatting characters (~, *, _, `) inserted before DERF:V1: tag by Messenger
+        raw_block = re.sub(r'^[~\*_`\s]+', '', raw_block)
+
         is_compressed = False
         if raw_block.startswith("DERF:V1:C:"):
             raw_block = raw_block[10:]; is_compressed = True
@@ -190,16 +211,29 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
         elif raw_block.startswith("DERF:V1:"):
             raw_block = raw_block[8:]
 
+        pkts = None
+
+        # Try Base64 first (default standard)
         try:
-            clean_block = clean_ciphertext_input(raw_block).replace(' ', '').replace('\n', '')
-            combined_binary = base64.b85decode(clean_block)
-            pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
-        except Exception:
-            try:
-                combined_binary = base64.b64decode(raw_block)
+            clean_b64 = re.sub(r'[^A-Za-z0-9+/=]+', '', raw_block)
+            combined_binary = base64.b64decode(clean_b64)
+            if len(combined_binary) % PACKET == 0 and len(combined_binary) > 0:
                 pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
+        except Exception:
+            pass
+
+        # Fallback to Base85 if Base64 fails or isn't aligned
+        if not pkts:
+            try:
+                clean_b85 = re.sub(r'[^0-9A-Za-z!#$%&()*+,-;<=>?@^_`{|}~]+', '', raw_block)
+                combined_binary = base64.b85decode(clean_b85)
+                if len(combined_binary) % PACKET == 0 and len(combined_binary) > 0:
+                    pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
             except Exception:
-                continue
+                pass
+
+        if not pkts:
+            continue
 
         if custom_session_loader:
             c_sess, c_idn = custom_session_loader()
@@ -219,11 +253,14 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
                                 except Exception: pass
                             final_decrypted_texts.append(out.decode('utf-8', errors='replace'))
                     except Exception: pass
+                if final_decrypted_texts:
+                    continue
 
         paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
         buf = {}
         for peer in paired:
             sess = Session.load(peer)
+            if not sess: continue
             peer_fp = id_fp(cs[peer])
             got = False
             for p in pkts:
@@ -441,7 +478,7 @@ def lca_decrypt(m, pkg, ea):
     for _ in range(n):
         (l,), off = struct.unpack(">H", pkg[off:off+2]), off+2
         bl.append(pkg[off:off+l]); off += l
-    if off != len(pkg): raise ValueError("ext")
+    if off > len(pkg): raise ValueError("ext")
     kn, ka, km = keygen(m)
     man = struct.pack(">H", len(aad)) + aad + struct.pack(">Q", n) + b"".join(ts)
     if not hmac.compare_digest(mt, hmac_sha256(km, man + hashlib.sha256(b"".join(bl)).digest())):
@@ -583,10 +620,13 @@ class Session:
 
     @staticmethod
     def load(p):
-        d = vload(P(f"lc_session_{p}.json"))
-        return Session(ub64(d["sid"]), None, d["role"], ub64(d["sck"]), ub64(d["rck"]),
-                       d["sn"], d["rn"], ub64(d["hsend"]), ub64(d["hrecv"]),
-                       {int(k): ub64(v) for k, v in d["sk"].items()})
+        try:
+            d = vload(P(f"lc_session_{p}.json"))
+            return Session(ub64(d["sid"]), None, d["role"], ub64(d["sck"]), ub64(d["rck"]),
+                           d["sn"], d["rn"], ub64(d["hsend"]), ub64(d["hrecv"]),
+                           {int(k): ub64(v) for k, v in d.get("sk", {}).items()})
+        except Exception:
+            return None
 
 def hs_req(idn, pb):
     if not valid_pub(pb):
@@ -1273,7 +1313,7 @@ class MainScreen(Screen):
             vsave(sim_path, d)
 
             combined_binary = b"".join(pkts)
-            encoded_str = base64.b85encode(combined_binary).decode('ascii')
+            encoded_str = base64.b64encode(combined_binary).decode('ascii')
             prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
             bob_cipher = prefix + encoded_str
 
@@ -1467,7 +1507,7 @@ class MainScreen(Screen):
                 vsave(sim_path, d)
 
                 combined_binary = b"".join(pkts)
-                encoded_str = base64.b85encode(combined_binary).decode('ascii')
+                encoded_str = base64.b64encode(combined_binary).decode('ascii')
                 prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
                 cipher_text = prefix + encoded_str
                 self.last_sim_ciphertext = cipher_text

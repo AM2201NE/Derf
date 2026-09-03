@@ -69,9 +69,16 @@ def draw_rounded_rect(canvas, x1, y1, x2, y2, radius=12, **kwargs):
 
 def clean_ciphertext_input(text):
     if not text: return ""
-    for inv in ['\u200b', '\u200c', '\u200d', '\ufeff', '\u00a0', '\r']:
-        text = text.replace(inv, '')
-    return text.strip('`').strip()
+    import html
+    text = html.unescape(text)
+    replacements = {
+        '’': "'", '‘': "'", '“': '"', '”': '"',
+        '–': '-', '—': '-', '\u200b': '', '\u200c': '',
+        '\u200d': '', '\ufeff': '', '\u00a0': '', '\r': ''
+    }
+    for k, v in replacements.items():
+        text = text.replace(k, v)
+    return text.strip()
 
 
 class PeekCard:
