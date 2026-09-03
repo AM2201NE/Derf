@@ -110,7 +110,7 @@ def clean_ciphertext_input(text):
     return text.strip()
 
 
-def smart_split_text(text, max_chars=350):
+def smart_split_text(text, max_chars=120):
     """Splits text at spaces/newlines so words are never cut in half."""
     if len(text) <= max_chars:
         return [text]
@@ -145,7 +145,7 @@ def encrypt_alien_stack(text, peer, idn_data):
     if not peer or peer not in cs or not os.path.exists(P(f"lc_session_{peer}.json")):
         raise ValueError("Please select a valid PAIRED contact.")
 
-    text_chunks = smart_split_text(text, max_chars=350)
+    text_chunks = smart_split_text(text, max_chars=120)
     sess = Session.load(peer)
     me_pk = ub64(idn_data["pq_pk"]) if isinstance(idn_data["pq_pk"], str) else idn_data["pq_pk"]
     me_fp = id_fp(me_pk)
@@ -164,11 +164,10 @@ def encrypt_alien_stack(text, peer, idn_data):
             is_compressed = True
 
         pkts = sess.encrypt(chunk_bytes, me_fp, peer_fp)
-        combined_binary = b"".join(pkts)
-        encoded_str = base64.b64encode(combined_binary).decode('ascii')
-
         prefix = "DERF:V1:C:" if is_compressed else "DERF:V1:R:"
-        encrypted_outputs.append(prefix + encoded_str)
+        for pkt in pkts:
+            encoded_str = base64.b64encode(pkt).decode('ascii')
+            encrypted_outputs.append(prefix + encoded_str)
 
     sess.save(peer)
     return "\n\n".join(encrypted_outputs)
@@ -195,6 +194,8 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
     me_pk = ub64(idn_data["pq_pk"]) if isinstance(idn_data["pq_pk"], str) else idn_data["pq_pk"]
     me_fp = id_fp(me_pk)
     final_decrypted_texts = []
+    buf_custom = {}
+    buf_paired = {}
 
     for raw_block in raw_chunks:
         raw_block = raw_block.strip()
@@ -239,10 +240,9 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
             c_sess, c_idn = custom_session_loader()
             if c_sess and c_idn:
                 peer_fp = id_fp(c_idn["pq_pk"])
-                buf = {}
                 for p in pkts:
                     try:
-                        out = feed(c_sess, p, me_fp, peer_fp, buf)
+                        out = feed(c_sess, p, me_fp, peer_fp, buf_custom)
                         if out:
                             if is_compressed:
                                 try:
@@ -257,7 +257,6 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
                     continue
 
         paired = [n for n in cs if os.path.exists(P(f"lc_session_{n}.json"))]
-        buf = {}
         for peer in paired:
             sess = Session.load(peer)
             if not sess: continue
@@ -265,7 +264,7 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
             got = False
             for p in pkts:
                 try:
-                    out = feed(sess, p, me_fp, peer_fp, buf)
+                    out = feed(sess, p, me_fp, peer_fp, buf_paired)
                     if out:
                         if is_compressed:
                             try:
@@ -367,8 +366,8 @@ PQ_KEM = None
 APP_AAD = b"derf-pqfs-v1"
 MAXSKIPPED = 1024
 MAXN = 1 << 20
-CHUNK = 128
-HJ = 256
+CHUNK = 6
+HJ = 128
 VAULT = b""
 
 def derive_vault(pw):
