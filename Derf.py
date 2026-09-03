@@ -110,7 +110,7 @@ def clean_ciphertext_input(text):
     return text.strip()
 
 
-def smart_split_text(text, max_chars=120):
+def smart_split_text(text, max_chars=200):
     """Splits text at spaces/newlines so words are never cut in half."""
     if len(text) <= max_chars:
         return [text]
@@ -145,7 +145,7 @@ def encrypt_alien_stack(text, peer, idn_data):
     if not peer or peer not in cs or not os.path.exists(P(f"lc_session_{peer}.json")):
         raise ValueError("Please select a valid PAIRED contact.")
 
-    text_chunks = smart_split_text(text, max_chars=120)
+    text_chunks = smart_split_text(text, max_chars=200)
     sess = Session.load(peer)
     me_pk = ub64(idn_data["pq_pk"]) if isinstance(idn_data["pq_pk"], str) else idn_data["pq_pk"]
     me_fp = id_fp(me_pk)
@@ -366,8 +366,18 @@ PQ_KEM = None
 APP_AAD = b"derf-pqfs-v1"
 MAXSKIPPED = 1024
 MAXN = 1 << 20
-CHUNK = 6
+CHUNK = 220
 HJ = 128
+BUCKET_SIZE = 256
+
+def pad_bucket(p, bucket_size=BUCKET_SIZE):
+    if len(p) > bucket_size - 4: raise ValueError("Payload too large")
+    i = struct.pack(">I", len(p)) + p
+    return i + os.urandom(bucket_size - len(i))
+
+def unpad_bucket(p):
+    (l,) = struct.unpack(">I", p[:4])
+    return p[4:4+l]
 VAULT = b""
 
 def derive_vault(pw):
@@ -451,19 +461,31 @@ def nuke_all_files():
 def lca_encrypt(m, msg, aad):
     kn, ka, km = keygen(m)
     a = ChaCha20Poly1305(ka)
-    now = time.time()
-    ts = [struct.pack(">Q", int((now + i * 1e-6) * 1e9)) for i in range(len(msg))]
-    pv, bl = b"", []
-    for i, (x, t) in enumerate(zip(msg, ts)):
-        n = hmac_sha256(kn, t + struct.pack(">Q", i) + pv + aad)[:12]
-        b = n + a.encrypt(n, bytes([x]), aad)
-        bl.append(b); pv = b
-    man = struct.pack(">H", len(aad)) + aad + struct.pack(">Q", len(msg)) + b"".join(ts)
-    out = bytearray(b"LCA1") + man + hmac_sha256(km, man + hashlib.sha256(b"".join(bl)).digest())
-    for b in bl: out += struct.pack(">H", len(b)) + b
-    return bytes(out)
+    padded = pad_bucket(msg, bucket_size=BUCKET_SIZE)
+    no = os.urandom(12)
+    ct = a.encrypt(no, padded, aad)
+    man = struct.pack(">H", len(aad)) + aad + no
+    mac = hmac_sha256(km, man + ct)
+    return b"LCA2" + struct.pack(">H", len(aad)) + aad + no + mac + ct
 
 def lca_decrypt(m, pkg, ea):
+    if pkg[:4] == b"LCA2":
+        off = 4
+        (al,), off = struct.unpack(">H", pkg[off:off+2]), off+2
+        aad, off = pkg[off:off+al], off+al
+        if aad != ea: raise ValueError("ctx")
+        no, off = pkg[off:off+12], off+12
+        mac, off = pkg[off:off+32], off+32
+        ct = pkg[off:]
+        kn, ka, km = keygen(m)
+        man = struct.pack(">H", len(aad)) + aad + no
+        if not hmac.compare_digest(mac, hmac_sha256(km, man + ct)):
+            raise ValueError("mac")
+        a = ChaCha20Poly1305(ka)
+        padded = a.decrypt(no, ct, aad)
+        now = time.time()
+        return unpad_bucket(padded), [struct.pack(">Q", int((now + i * 1e-6) * 1e9)) for i in range(1)]
+
     if pkg[:4] != b"LCA1": raise ValueError("hdr")
     off = 4
     (al,), off = struct.unpack(">H", pkg[off:off+2]), off+2
@@ -491,7 +513,7 @@ def lca_decrypt(m, pkg, ea):
     return bytes(out), ts
 
 def aad_len(): return len(APP_AAD) + 32 + HJ + 64
-def lca_size(n): return 4 + 2 + aad_len() + 8 + 8 * n + 32 + n * 31
+def lca_size(n=BUCKET_SIZE): return 4 + 2 + aad_len() + 12 + 32 + (BUCKET_SIZE + 16)
 PAYLOAD_MAX = lca_size(CHUNK)
 PACKET = 12 + HJ + 16 + PAYLOAD_MAX
 
@@ -579,15 +601,22 @@ class Session:
         s.skipped = skipped or {}
 
     def encrypt(s, pt, mf, pf):
-        pd = pad(pt); tot = len(pd); mid = os.urandom(8).hex(); pk = []
+        tot = len(pt); mid = os.urandom(8).hex(); pk = []
         for ci in range(0, tot, CHUNK):
-            ch = pd[ci:ci+CHUNK]
+            ch = pt[ci:ci+CHUNK]
             mk, s.sck = kdf_ck(s.sck); n = s.sn; s.sn += 1
             h = {"n": n, "tot": tot, "ci": ci // CHUNK, "mid": mid, "pl": 0}
-            hj = json.dumps(h, sort_keys=True).encode(); h["pl"] = lca_size(len(ch))
-            hj = json.dumps(h, sort_keys=True).encode(); hj += b" " * (HJ - len(hj))
+            hj = json.dumps(h, sort_keys=True).encode()
+            hj += b" " * (HJ - len(hj))
             aad = APP_AAD + s.sid + hj + b"".join(sorted((mf, pf)))
-            l1 = lca_encrypt(mk, ch, aad); pay = l1 + os.urandom(PAYLOAD_MAX - len(l1)); no = os.urandom(12)
+            l1 = lca_encrypt(mk, ch, aad)
+            h["pl"] = len(l1)
+            hj = json.dumps(h, sort_keys=True).encode()
+            hj += b" " * (HJ - len(hj))
+            aad = APP_AAD + s.sid + hj + b"".join(sorted((mf, pf)))
+            l1 = lca_encrypt(mk, ch, aad)
+            pay = l1 + os.urandom(PAYLOAD_MAX - len(l1))
+            no = os.urandom(12)
             pk.append(no + ChaCha20Poly1305(s.hsend).encrypt(no, hj, b"") + pay)
         return pk
 
@@ -681,7 +710,7 @@ def feed(s, pkt, mf, pf, buf):
     if len(b["parts"]) == need:
         pd = b"".join(b["parts"][i] for i in range(need))[:tot]
         del buf[mid]
-        return unpad(pd)
+        return pd
     return None
 
 def run_selftest():
