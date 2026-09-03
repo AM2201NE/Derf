@@ -95,6 +95,13 @@ if os.path.exists(DICT_PATH):
         print(f"[!] Failed to load dictionary: {repr(e)}")
 # ===========================================================
 
+def clean_ciphertext_input(text):
+    if not text: return ""
+    for inv in ['\u200b', '\u200c', '\u200d', '\ufeff', '\u00a0', '\r']:
+        text = text.replace(inv, '')
+    return text.strip('`').strip()
+
+
 def smart_split_text(text, max_chars=350):
     """Splits text at spaces/newlines so words are never cut in half."""
     if len(text) <= max_chars:
@@ -160,6 +167,7 @@ def encrypt_alien_stack(text, peer, idn_data):
 
 def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
     if not raw_text: return None
+    raw_text = clean_ciphertext_input(raw_text)
 
     raw_chunks = re.split(r'\n\s*\n', raw_text.strip())
     if len(raw_chunks) == 1:
@@ -183,7 +191,7 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
             raw_block = raw_block[8:]
 
         try:
-            clean_block = raw_block.replace(' ', '').replace('\n', '')
+            clean_block = clean_ciphertext_input(raw_block).replace(' ', '').replace('\n', '')
             combined_binary = base64.b85decode(clean_block)
             pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
         except Exception:
@@ -1982,7 +1990,7 @@ def start_integrated_background_service(app_ref):
                 except Exception: pass
 
             trigger_copy_native()
-            time.sleep(0.08)
+            time.sleep(0.15)
 
             selected_text = safe_paste().strip()
             if selected_text and "DERF:V1:" in selected_text:

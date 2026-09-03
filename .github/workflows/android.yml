@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - test-invitation
+      - android-build-512a1be
 
 jobs:
   build:

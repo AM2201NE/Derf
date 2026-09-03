@@ -67,6 +67,13 @@ def draw_rounded_rect(canvas, x1, y1, x2, y2, radius=12, **kwargs):
     ]
     return canvas.create_polygon(points, smooth=True, **kwargs)
 
+def clean_ciphertext_input(text):
+    if not text: return ""
+    for inv in ['\u200b', '\u200c', '\u200d', '\ufeff', '\u00a0', '\r']:
+        text = text.replace(inv, '')
+    return text.strip('`').strip()
+
+
 class PeekCard:
     def __init__(self):
         self.root = None
@@ -200,11 +207,12 @@ if __name__ == "__main__":
             # 1. Copy currently highlighted text
             if keyboard:
                 keyboard.send('ctrl+c')
-            time.sleep(0.12)
+            time.sleep(0.15)
 
-            selected_text = pyperclip.paste().strip()
+            selected_text = clean_ciphertext_input(pyperclip.paste())
 
             # 2. Check if it's a Derf message
+            selected_text = clean_ciphertext_input(selected_text)
             if "DERF:V1:" in selected_text:
                 decrypted = decrypt_payload(selected_text)
                 if decrypted:
