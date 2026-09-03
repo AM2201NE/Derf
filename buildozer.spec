@@ -9,8 +9,7 @@ source.include_exts = py,png,jpg,jpeg,kv,atlas,json,txt,zdict,java
 
 version = 1.0.0
 
-# CRITICAL: Pin BOTH hostpython3 and python3 to 3.11.8 to prevent Python 3.14
-requirements = hostpython3==3.11.8,python3==3.11.8,kivy,cryptography,kyber-py,zstandard,pyjnius,plyer,pillow==10.4.0
+requirements = python3==3.11.8,kivy,cryptography,kyber-py,zstandard,pyjnius,plyer,pillow==10.4.0
 
 orientation = portrait
 fullscreen = 0
