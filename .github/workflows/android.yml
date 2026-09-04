@@ -1,28 +1,34 @@
-name: Build Android APK
+name: Build Android APK (Cloud CI/CD)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - main
-      - test-invitation
-      - android-build-512a1be
+      - "*"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build Android APK
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build APK with Buildozer
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build APK with Buildozer Action
         uses: ArtemSBulgakov/buildozer-action@v1
         with:
           command: buildozer android debug
+          buildozer_version: master
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
+          name: Derf-PQ-Messenger-APK
           path: bin/*.apk
+          retention-days: 30
