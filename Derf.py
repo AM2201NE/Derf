@@ -923,9 +923,10 @@ def start_integrated_background_service(app_ref):
     peek_card_inst = None
     try:
         import derf_peek
-        peek_card_inst = derf_peek.PeekCard()
-        t_peek = threading.Thread(target=peek_card_inst.run, daemon=True)
-        t_peek.start()
+        if hasattr(app_ref, 'peek_card_inst') and app_ref.peek_card_inst:
+            peek_card_inst = app_ref.peek_card_inst
+        else:
+            peek_card_inst = derf_peek.PeekCard()
         print("[*] Quick Peek Glass Card Overlay active in background!")
     except Exception as e:
         print(f"Peek Overlay init status: {repr(e)}")

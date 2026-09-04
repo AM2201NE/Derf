@@ -1,5 +1,5 @@
 # ==========================================
-# DERF QUICK PEEK (Apple Squircle Glass Overlay - PyQt6)
+# DERF QUICK PEEK (Apple Squircle Glass Overlay - PyQt6 Thread-Safe)
 # ==========================================
 import os
 import sys
@@ -79,14 +79,9 @@ def clean_ciphertext_input(text):
     return text.strip()
 
 
-class PeekSignalEmitter(QObject):
-    show_signal = pyqtSignal(str, int, int)
-    hide_signal = pyqtSignal()
-
-
 class PeekCardWidget(QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -201,22 +196,16 @@ class PeekCardWidget(QWidget):
             super().keyPressEvent(event)
 
 
-class PeekCard:
-    def __init__(self):
-        self.app = None
+class PeekCard(QObject):
+    show_signal = pyqtSignal(str, int, int)
+    hide_signal = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.widget = None
-        self.emitter = PeekSignalEmitter()
-        self.emitter.show_signal.connect(self._on_show)
-        self.emitter.hide_signal.connect(self._on_hide)
-
-    def init_ui(self):
-        if not QApplication.instance():
-            self.app = QApplication(sys.argv)
-        else:
-            self.app = QApplication.instance()
-
-        if not self.widget:
-            self.widget = PeekCardWidget()
+        # Connect signals with explicit QueuedConnection to guarantee execution on the Main GUI Thread
+        self.show_signal.connect(self._on_show, Qt.ConnectionType.QueuedConnection)
+        self.hide_signal.connect(self._on_hide, Qt.ConnectionType.QueuedConnection)
 
     def _on_show(self, text, x, y):
         if not self.widget:
@@ -228,15 +217,14 @@ class PeekCard:
             self.widget.hide()
 
     def show(self, text, x, y):
-        self.emitter.show_signal.emit(text, int(x), int(y))
+        self.show_signal.emit(text, int(x), int(y))
 
     def hide(self):
-        self.emitter.hide_signal.emit()
+        self.hide_signal.emit()
 
     def run(self):
-        self.init_ui()
-        if self.app and not QApplication.instance():
-            self.app.exec()
+        # Legacy placeholder for compatibility
+        pass
 
 
 def decrypt_payload(raw_block):
@@ -250,8 +238,8 @@ def decrypt_payload(raw_block):
 
 
 if __name__ == "__main__":
+    app = QApplication(sys.argv)
     peek_card = PeekCard()
-    peek_card.init_ui()
 
     def trigger_peek():
         try:
@@ -286,5 +274,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[!] Hotkey error: {e}")
 
-    if peek_card.app:
-        peek_card.app.exec()
+    sys.exit(app.exec())

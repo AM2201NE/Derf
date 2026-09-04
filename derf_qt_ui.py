@@ -846,15 +846,17 @@ def launch_pyqt_app(profile_name="default"):
 
     def on_vault_unlocked(vault_bytes, prof_name):
         nonlocal main_win
+        peek_card_inst = derf_peek.PeekCard() # Instantiated on Main GUI Thread
         main_win = DerfMainWindow(vault_bytes, prof_name)
         main_win.show()
 
         class AppRefMock:
-            def __init__(self, idn, win):
+            def __init__(self, idn, win, peek_card):
                 self.idn = idn
                 self.main_screen = win
+                self.peek_card_inst = peek_card
 
-        app_ref = AppRefMock(main_win.idn, main_win)
+        app_ref = AppRefMock(main_win.idn, main_win, peek_card_inst)
         Derf.start_integrated_background_service(app_ref)
 
     vault_win = VaultWindow(profile_name)
