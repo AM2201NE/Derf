@@ -1,5 +1,6 @@
 # ==============================================================================
-# DERF PYQT6 HIGH-END PREMIUM UI & UX MODULE (Stitch "Digital Curator" Design)
+# DERF POST-QUANTUM MESSENGER — PYQT6 PREMIUM "DIGITAL CURATOR" UI
+# Design Tokens & Layout based on Stitch Design System
 # ==============================================================================
 import os
 import sys
@@ -11,7 +12,8 @@ import threading
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget,
-    QFrame, QDialog, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, QScrollArea
+    QFrame, QDialog, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, QScrollArea,
+    QSplitter, QToolButton
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QSize
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QBrush
@@ -19,116 +21,171 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QBru
 import Derf
 import derf_peek
 
-# --- Stitch Design System Color Tokens ---
-COLOR_BG_OBSIDIAN = QColor("#0E0E10")      # Deep Backdrop
-COLOR_BG_SIDEBAR  = QColor("#131418")      # Navigation Sidebar
-COLOR_SURFACE_CARD = QColor("#1F2129")     # Glass/Card Container
-COLOR_SURFACE_ALT  = QColor("#292C38")     # Alternate Surface
-COLOR_CYAN_PRIMARY = QColor("#00F0FF")     # Electric Cyan Accent
-COLOR_TEXT_MAIN    = QColor("#EEF0F8")     # Bright Text
-COLOR_TEXT_MUTED   = QColor("#858FA6")     # Muted Subtext
-COLOR_GREEN_NEON   = QColor("#00E073")     # Active Green
-COLOR_RED_DANGER   = QColor("#FF4747")     # Danger Red
+# --- Stitch Design System Tokens ---
+COLOR_SURFACE_LOWEST = "#0E0E0E"  # Darkest background
+COLOR_CANVAS         = "#131313"  # Primary Stage
+COLOR_SURFACE_CARD   = "#1C1B1B"  # Card Panel
+COLOR_SURFACE_ELEV   = "#252424"  # Elevated Input / Container
+COLOR_CYAN_ACCENT    = "#00F0FF"  # Electric Cyan Accent
+COLOR_GREEN_ACTIVE   = "#00E073"  # Active / Paired Green
+COLOR_TEXT_MAIN      = "#E5E2E1"  # Crisp high-contrast reading text
+COLOR_TEXT_MUTED     = "#9EA2A8"  # Subtitle / secondary text
+COLOR_BORDER_GHOST   = "rgba(0, 240, 255, 0.2)" # Subtle accent border
 
-STYLESHEET_PREMIUM = """
-QMainWindow {
-    background-color: #0E0E10;
-}
-QWidget {
-    font-family: 'Segoe UI', 'SF Pro Text', 'Inter', sans-serif;
-    color: #EEF0F8;
-}
-QFrame#Sidebar {
-    background-color: #131418;
-    border-right: 1px solid #1F2129;
-}
-QFrame#CardPanel {
-    background-color: #1F2129;
+STYLESHEET_STITCH = f"""
+QMainWindow, QDialog, QWidget {{
+    background-color: {COLOR_CANVAS};
+    color: {COLOR_TEXT_MAIN};
+    font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif;
+}}
+
+/* Sidebar & Navigation */
+#Sidebar {{
+    background-color: {COLOR_SURFACE_LOWEST};
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}}
+
+#CardPanel {{
+    background-color: {COLOR_SURFACE_CARD};
     border-radius: 12px;
-    border: 1px solid #292C38;
-}
-QLineEdit, QTextEdit {
-    background-color: #131418;
-    color: #00F0FF;
-    border: 1px solid #292C38;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}}
+
+#CardPanelElevated {{
+    background-color: {COLOR_SURFACE_ELEV};
+    border-radius: 12px;
+    border: 1px solid {COLOR_BORDER_GHOST};
+}}
+
+/* Inputs & Text Area */
+QLineEdit, QTextEdit, QSpinBox {{
+    background-color: {COLOR_SURFACE_ELEV};
+    color: {COLOR_TEXT_MAIN};
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 10px;
     font-size: 13px;
-    selection-background-color: #00F0FF;
-    selection-color: #0E0E10;
-}
-QLineEdit:focus, QTextEdit:focus {
-    border: 1px solid #00F0FF;
-}
-QPushButton {
-    background-color: #00F0FF;
-    color: #0E0E10;
-    font-weight: bold;
-    border-radius: 8px;
-    padding: 10px 16px;
+    selection-background-color: {COLOR_CYAN_ACCENT};
+    selection-color: #0E0E0E;
+}}
+
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus {{
+    border: 1px solid {COLOR_CYAN_ACCENT};
+}}
+
+/* Buttons */
+QPushButton {{
+    background-color: {COLOR_CYAN_ACCENT};
+    color: #040405;
+    font-weight: 700;
     font-size: 13px;
     border: none;
-}
-QPushButton:hover {
-    background-color: #5CFFFA;
-}
-QPushButton:pressed {
+    border-radius: 8px;
+    padding: 10px 18px;
+}}
+
+QPushButton:hover {{
+    background-color: #33F3FF;
+}}
+
+QPushButton:pressed {{
     background-color: #00C8D6;
-}
-QPushButton#SecondaryButton {
-    background-color: #1F2129;
-    color: #EEF0F8;
-    border: 1px solid #292C38;
-}
-QPushButton#SecondaryButton:hover {
-    background-color: #292C38;
-    border: 1px solid #00F0FF;
-    color: #00F0FF;
-}
-QPushButton#DangerButton {
-    background-color: #292C38;
+}}
+
+QPushButton#SecondaryButton {{
+    background-color: {COLOR_SURFACE_ELEV};
+    color: {COLOR_TEXT_MAIN};
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}}
+
+QPushButton#SecondaryButton:hover {{
+    background-color: #2E2D2D;
+    border: 1px solid {COLOR_CYAN_ACCENT};
+}}
+
+QPushButton#DangerButton {{
+    background-color: rgba(255, 71, 71, 0.15);
     color: #FF4747;
-    border: 1px solid #FF4747;
-}
-QPushButton#DangerButton:hover {
-    background-color: #FF4747;
-    color: #FFFFFF;
-}
-QListWidget {
+    border: 1px solid rgba(255, 71, 71, 0.3);
+}}
+
+QPushButton#DangerButton:hover {{
+    background-color: rgba(255, 71, 71, 0.3);
+}}
+
+/* Navigation Bar Buttons */
+QPushButton#NavPill {{
+    background-color: transparent;
+    color: {COLOR_TEXT_MUTED};
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-align: left;
+}}
+
+QPushButton#NavPill:hover {{
+    background-color: rgba(255, 255, 255, 0.05);
+    color: {COLOR_TEXT_MAIN};
+}}
+
+QPushButton#NavPillActive {{
+    background-color: rgba(0, 240, 255, 0.12);
+    color: {COLOR_CYAN_ACCENT};
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-align: left;
+}}
+
+/* Contacts List */
+QListWidget {{
     background-color: transparent;
     border: none;
     outline: none;
-}
-QListWidget::item {
-    background-color: #1F2129;
-    color: #EEF0F8;
-    border-radius: 8px;
+}}
+
+QListWidget::item {{
+    background-color: {COLOR_SURFACE_CARD};
+    color: {COLOR_TEXT_MAIN};
+    border-radius: 10px;
     padding: 10px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     border: 1px solid transparent;
-}
-QListWidget::item:selected {
-    background-color: #292C38;
-    color: #00F0FF;
-    border: 1px solid #00F0FF;
-}
-QListWidget::item:hover {
-    background-color: #252833;
-}
-QScrollBar:vertical {
+}}
+
+QListWidget::item:hover {{
+    background-color: {COLOR_SURFACE_ELEV};
+    border: 1px solid rgba(0, 240, 255, 0.2);
+}}
+
+QListWidget::item:selected {{
+    background-color: {COLOR_SURFACE_ELEV};
+    border: 1px solid {COLOR_CYAN_ACCENT};
+    color: {COLOR_TEXT_MAIN};
+}}
+
+/* Scrollbars */
+QScrollBar:vertical {{
     border: none;
-    background: #131418;
+    background: {COLOR_SURFACE_LOWEST};
     width: 6px;
     border-radius: 3px;
-}
-QScrollBar::handle:vertical {
-    background: #00F0FF;
+}}
+
+QScrollBar::handle:vertical {{
+    background: rgba(255, 255, 255, 0.2);
     min-height: 20px;
     border-radius: 3px;
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+}}
+
+QScrollBar::handle:vertical:hover {{
+    background: {COLOR_CYAN_ACCENT};
+}}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0px;
-}
+}}
 """
 
 
@@ -138,27 +195,27 @@ class VaultWindow(QWidget):
     def __init__(self, profile_name="default"):
         super().__init__()
         self.profile_name = profile_name
-        self.setWindowTitle("Derf PQ Messenger — Secure Vault")
-        self.setFixedSize(480, 560)
-        self.setStyleSheet(STYLESHEET_PREMIUM)
+        self.setWindowTitle("Derf PQ Messenger — Unlock Vault")
+        self.setFixedSize(460, 520)
+        self.setStyleSheet(STYLESHEET_STITCH)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(36, 40, 36, 40)
+        layout.setContentsMargins(36, 36, 36, 36)
         layout.setSpacing(16)
 
         # Header Badge
-        badge = QLabel("🛡️ POST-QUANTUM AEAD VAULT")
-        badge.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px; letter-spacing: 2px;")
+        badge = QLabel("🛡️ POST-QUANTUM VAULT")
+        badge.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 11px; letter-spacing: 2px;")
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(badge)
 
         title = QLabel("DERF MESSENGER")
-        title.setStyleSheet("color: #EEF0F8; font-weight: 800; font-size: 24px; letter-spacing: 1px;")
+        title.setStyleSheet(f"color: {COLOR_TEXT_MAIN}; font-weight: 800; font-size: 26px; letter-spacing: 1px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         prof_lbl = QLabel(f"PROFILE: [{self.profile_name.upper()}]")
-        prof_lbl.setStyleSheet("color: #00E073; font-weight: bold; font-size: 12px;")
+        prof_lbl.setStyleSheet(f"color: {COLOR_GREEN_ACTIVE}; font-weight: bold; font-size: 12px;")
         prof_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(prof_lbl)
 
@@ -169,16 +226,16 @@ class VaultWindow(QWidget):
         card.setObjectName("CardPanel")
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(20, 20, 20, 20)
-        card_layout.setSpacing(12)
+        card_layout.setSpacing(14)
 
-        lbl_desc = QLabel("Enter Vault Passphrase to unlock private ML-KEM keys and ratchet sessions.")
+        lbl_desc = QLabel("Enter Master Passphrase to unlock private ML-KEM-768 identity keys & sessions.")
         lbl_desc.setWordWrap(True)
-        lbl_desc.setStyleSheet("color: #858FA6; font-size: 12px;")
+        lbl_desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 12px; line-height: 1.4;")
         card_layout.addWidget(lbl_desc)
 
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_pass.setPlaceholderText("Vault Passphrase...")
+        self.txt_pass.setPlaceholderText("Master Passphrase...")
         self.txt_pass.returnPressed.connect(self.do_unlock)
         card_layout.addWidget(self.txt_pass)
 
@@ -190,8 +247,8 @@ class VaultWindow(QWidget):
         layout.addWidget(card)
 
         # Status footer
-        self.lbl_status = QLabel("Derf Core v1.0.0 • ML-KEM-768 Active")
-        self.lbl_status.setStyleSheet("color: #858FA6; font-size: 11px;")
+        self.lbl_status = QLabel("NIST FIPS 203 ML-KEM-768 • Double Ratchet")
+        self.lbl_status.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px;")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_status)
 
@@ -206,16 +263,14 @@ class VaultWindow(QWidget):
         try:
             vault_bytes = Derf.derive_vault(pw)
             v_tok = Derf.P(".vault_token")
-
-            # Verify existing identity or initialize fresh
             id_path = Derf.P("lc_identity.json")
+
             if os.path.exists(v_tok) and os.path.exists(id_path):
                 Derf.VAULT = open(v_tok, "rb").read()
                 try:
                     raw_idn = Derf.vload(id_path)
                     idn = Derf.norm_identity(raw_idn)
                 except Exception:
-                    # Test if user provided correct passphrase for stored token
                     Derf.VAULT = vault_bytes
                     raw_idn = Derf.vload(id_path)
                     idn = Derf.norm_identity(raw_idn)
@@ -225,7 +280,7 @@ class VaultWindow(QWidget):
                 open(v_tok, "wb").write(vault_bytes)
                 if not os.path.exists(id_path):
                     idn = Derf.make_identity()
-                    Derf.vsave(id_path, idn)
+                    Derf.vsave(id_path, {"pq_sk": Derf.b64(idn["pq_sk"]), "pq_pk": Derf.b64(idn["pq_pk"])})
                 else:
                     raw_idn = Derf.vload(id_path)
                     idn = Derf.norm_identity(raw_idn)
@@ -234,30 +289,31 @@ class VaultWindow(QWidget):
             self.close()
 
         except Exception as e:
-            QMessageBox.critical(self, "Unlock Failed", f"Invalid Vault Passphrase or corrupted data.\nDetails: {e}")
+            QMessageBox.critical(self, "Unlock Failed", f"Invalid Passphrase or corrupted vault.\nDetails: {e}")
 
 
 class AddContactDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add New Contact")
-        self.setFixedSize(420, 280)
-        self.setStyleSheet(STYLESHEET_PREMIUM)
+        self.setWindowTitle("Add Contact")
+        self.setFixedSize(480, 320)
+        self.setStyleSheet(STYLESHEET_STITCH)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
 
-        lbl = QLabel("➕ ADD DERF CONTACT")
-        lbl.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 13px;")
-        layout.addWidget(lbl)
+        title = QLabel("➕ Add New Contact")
+        title.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 16px;")
+        layout.addWidget(title)
 
         self.txt_name = QLineEdit()
-        self.txt_name.setPlaceholderText("Contact Handle (e.g., Alice)...")
+        self.txt_name.setPlaceholderText("Contact Handle (e.g. Alice)...")
         layout.addWidget(self.txt_name)
 
         self.txt_key = QTextEdit()
-        self.txt_key.setPlaceholderText("Paste LCAP1- Public Key string here...")
+        self.txt_key.setPlaceholderText("Paste LCAP1- Public Key...")
+        self.txt_key.setFixedHeight(110)
         layout.addWidget(self.txt_key)
 
         btn_box = QHBoxLayout()
@@ -284,9 +340,9 @@ class DerfMainWindow(QMainWindow):
         self.idn = None
         self.selected_peer = None
 
-        self.setWindowTitle(f"Derf PQ+FS Messenger — Profile: [{profile_name.upper()}]")
-        self.resize(1080, 720)
-        self.setStyleSheet(STYLESHEET_PREMIUM)
+        self.setWindowTitle(f"Derf PQ Messenger — [{profile_name.upper()}]")
+        self.resize(1120, 740)
+        self.setStyleSheet(STYLESHEET_STITCH)
 
         self.init_core_identity()
         self.init_ui()
@@ -295,102 +351,98 @@ class DerfMainWindow(QMainWindow):
 
     def init_core_identity(self):
         Derf.VAULT = self.vault_bytes
-        raw_idn = Derf.vload(Derf.P("lc_identity.json"))
-        self.idn = Derf.norm_identity(raw_idn)
+        id_path = Derf.P("lc_identity.json")
+        if os.path.exists(id_path):
+            raw_idn = Derf.vload(id_path)
+            self.idn = Derf.norm_identity(raw_idn)
 
     def init_ui(self):
-        main_widget = QWidget()
-        self.setCentralWidget(main_widget)
+        root = QWidget()
+        self.setCentralWidget(root)
 
-        root_layout = QHBoxLayout(main_widget)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
+        main_layout = QHBoxLayout(root)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # --- LEFT SIDEBAR ---
-        sidebar = QFrame()
+        # ---------------- SIDEBAR ----------------
+        sidebar = QWidget()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(260)
+        sidebar.setFixedWidth(280)
         sb_layout = QVBoxLayout(sidebar)
-        sb_layout.setContentsMargins(16, 20, 16, 20)
-        sb_layout.setSpacing(12)
+        sb_layout.setContentsMargins(18, 20, 18, 20)
+        sb_layout.setSpacing(14)
 
-        # Header Logo
+        # Logo Header
         logo_lbl = QLabel("⚡ DERF MESSENGER")
-        logo_lbl.setStyleSheet("color: #00F0FF; font-weight: 800; font-size: 16px; letter-spacing: 1px;")
+        logo_lbl.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: 800; font-size: 16px; letter-spacing: 1px;")
         sb_layout.addWidget(logo_lbl)
 
-        sub_lbl = QLabel(f"PROFILE: {self.profile_name.upper()} • PQ-ACTIVE")
-        sub_lbl.setStyleSheet("color: #00E073; font-weight: bold; font-size: 11px;")
+        sub_lbl = QLabel(f"PROFILE: {self.profile_name.upper()} • ML-KEM-768")
+        sub_lbl.setStyleSheet(f"color: {COLOR_GREEN_ACTIVE}; font-weight: bold; font-size: 11px;")
         sb_layout.addWidget(sub_lbl)
 
+        sb_layout.addSpacing(6)
+
+        # Navigation Pills
+        nav_box = QVBoxLayout()
+        nav_box.setSpacing(4)
+
+        self.nav_btns = {}
+        tabs = [
+            (0, "💬 Messages & Chat"),
+            (1, "🤝 One-Time Pairing"),
+            (2, "🛡️ Security Specs"),
+            (3, "⚙️ Profile Settings")
+        ]
+
+        for idx, label in tabs:
+            btn = QPushButton(label)
+            btn.setObjectName("NavPillActive" if idx == 0 else "NavPill")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, i=idx: self.switch_view(i))
+            nav_box.addWidget(btn)
+            self.nav_btns[idx] = btn
+
+        sb_layout.addLayout(nav_box)
         sb_layout.addSpacing(10)
 
-        # Section Label
-        sec_contacts = QLabel("CONTACTS & SESSIONS")
-        sec_contacts.setStyleSheet("color: #858FA6; font-weight: bold; font-size: 11px;")
-        sb_layout.addWidget(sec_contacts)
+        # Contacts Section Header
+        lbl_c_hdr = QLabel("CONTACTS")
+        lbl_c_hdr.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-weight: bold; font-size: 11px;")
+        sb_layout.addWidget(lbl_c_hdr)
 
-        # Contacts List
         self.contacts_list = QListWidget()
-        self.contacts_list.itemClicked.connect(self.on_contact_selected)
+        self.contacts_list.currentItemChanged.connect(lambda curr, prev: self.on_contact_selected(curr))
         sb_layout.addWidget(self.contacts_list)
 
-        # Contact Actions Bar (Add / Delete)
-        act_box = QHBoxLayout()
-        btn_add = QPushButton("➕ ADD")
-        btn_add.setObjectName("SecondaryButton")
-        btn_add.clicked.connect(self.do_add_contact_dialog)
+        # Sidebar Buttons
+        btn_add_c = QPushButton("＋ ADD NEW CONTACT")
+        btn_add_c.setObjectName("SecondaryButton")
+        btn_add_c.clicked.connect(self.do_add_contact_dialog)
+        sb_layout.addWidget(btn_add_c)
 
-        self.btn_del = QPushButton("🗑️ DELETE")
-        self.btn_del.setObjectName("DangerButton")
-        self.btn_del.clicked.connect(self.do_delete_contact)
+        btn_del_c = QPushButton("🗑️ SHRED CONTACT")
+        btn_del_c.setObjectName("DangerButton")
+        btn_del_c.clicked.connect(self.do_delete_contact)
+        sb_layout.addWidget(btn_del_c)
 
-        act_box.addWidget(btn_add)
-        act_box.addWidget(self.btn_del)
-        sb_layout.addLayout(act_box)
+        main_layout.addWidget(sidebar)
 
-        sb_layout.addSpacing(10)
-
-        # Navigation Buttons
-        self.btn_nav_chat = QPushButton("💬 SECURE CHAT")
-        self.btn_nav_chat.setObjectName("SecondaryButton")
-        self.btn_nav_chat.clicked.connect(lambda: self.switch_view(0))
-
-        self.btn_nav_pair = QPushButton("🤝 PAIR / INVITE")
-        self.btn_nav_pair.setObjectName("SecondaryButton")
-        self.btn_nav_pair.clicked.connect(lambda: self.switch_view(1))
-
-        self.btn_nav_specs = QPushButton("🛡️ SECURITY SPECS")
-        self.btn_nav_specs.setObjectName("SecondaryButton")
-        self.btn_nav_specs.clicked.connect(lambda: self.switch_view(2))
-
-        self.btn_nav_settings = QPushButton("⚙️ SETTINGS")
-        self.btn_nav_settings.setObjectName("SecondaryButton")
-        self.btn_nav_settings.clicked.connect(lambda: self.switch_view(3))
-
-        sb_layout.addWidget(self.btn_nav_chat)
-        sb_layout.addWidget(self.btn_nav_pair)
-        sb_layout.addWidget(self.btn_nav_specs)
-        sb_layout.addWidget(self.btn_nav_settings)
-
-        sb_layout.addStretch()
-
-        root_layout.addWidget(sidebar)
-
-        # --- RIGHT MAIN STAGE ---
+        # ---------------- MAIN STAGE ----------------
         self.stage_stack = QStackedWidget()
-        root_layout.addWidget(self.stage_stack)
-
-        # Build Page Views
         self.stage_stack.addWidget(self.build_chat_view())
         self.stage_stack.addWidget(self.build_pair_view())
         self.stage_stack.addWidget(self.build_specs_view())
         self.stage_stack.addWidget(self.build_settings_view())
 
+        main_layout.addWidget(self.stage_stack)
         self.switch_view(0)
 
     def switch_view(self, index):
         self.stage_stack.setCurrentIndex(index)
+        for idx, btn in self.nav_btns.items():
+            btn.setObjectName("NavPillActive" if idx == index else "NavPill")
+            btn.setStyle(btn.style()) # Force stylesheet update
 
     # --- VIEW 1: CHAT VIEW ---
     def build_chat_view(self):
@@ -400,80 +452,61 @@ class DerfMainWindow(QMainWindow):
         layout.setSpacing(12)
 
         # Chat Header Bar
-        hdr = QFrame()
-        hdr.setObjectName("CardPanel")
-        hdr_layout = QHBoxLayout(hdr)
+        hdr_box = QFrame()
+        hdr_box.setObjectName("CardPanel")
+        hdr_layout = QHBoxLayout(hdr_box)
         hdr_layout.setContentsMargins(16, 12, 16, 12)
 
-        self.lbl_chat_contact = QLabel("Select a contact from sidebar to start encrypted messaging.")
-        self.lbl_chat_contact.setStyleSheet("font-weight: bold; font-size: 14px; color: #00F0FF;")
+        self.lbl_chat_contact = QLabel("Select a contact to start messaging")
+        self.lbl_chat_contact.setStyleSheet(f"color: {COLOR_TEXT_MAIN}; font-weight: bold; font-size: 15px;")
         hdr_layout.addWidget(self.lbl_chat_contact)
 
         hdr_layout.addStretch()
 
-        self.lbl_chat_fp = QLabel("FP: ----")
-        self.lbl_chat_fp.setStyleSheet("color: #858FA6; font-size: 11px;")
+        self.lbl_chat_fp = QLabel("")
+        self.lbl_chat_fp.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px;")
         hdr_layout.addWidget(self.lbl_chat_fp)
 
-        layout.addWidget(hdr)
+        layout.addWidget(hdr_box)
 
-        # Message Scroll Area
+        # Chat Display
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
-        self.chat_display.setStyleSheet("""
-            QTextEdit {
-                background-color: #131418;
-                border: 1px solid #1F2129;
-                border-radius: 12px;
-                padding: 16px;
-                font-family: 'Segoe UI', 'Consolas', monospace;
-                font-size: 13px;
-                line-height: 1.4;
-            }
-        """)
         layout.addWidget(self.chat_display)
 
-        # Input Box & Actions
+        # Input Row
         input_box = QHBoxLayout()
-        input_box.setSpacing(10)
-
         self.txt_msg = QLineEdit()
-        self.txt_msg.setPlaceholderText("Type a secret message to encrypt...")
+        self.txt_msg.setPlaceholderText("Type encrypted post-quantum message...")
         self.txt_msg.returnPressed.connect(self.do_send_message)
         input_box.addWidget(self.txt_msg)
 
-        btn_send = QPushButton("ENCRYPT & COPY")
+        btn_send = QPushButton("ENCRYPT & SEND")
         btn_send.clicked.connect(self.do_send_message)
         input_box.addWidget(btn_send)
 
         layout.addLayout(input_box)
-
-        # Quick Hotkey Note
-        lbl_tip = QLabel("💡 HOTKEY TIP: Highlight text anywhere and press [ Alt+Shift+D ] or [ Ctrl+Shift+E ] to encrypt & paste, or [ Alt+Shift+Q ] to decrypt in Quick Peek Glass!")
-        lbl_tip.setStyleSheet("color: #858FA6; font-size: 11px;")
-        layout.addWidget(lbl_tip)
-
         return page
 
-    # --- VIEW 2: PAIR / INVITE VIEW ---
+    # --- VIEW 2: PAIRING VIEW ---
     def build_pair_view(self):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
 
-        hdr = QLabel("🤝 POST-QUANTUM KEY EXCHANGE (PAIRED HANDSHAKE)")
-        hdr.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 16px;")
+        hdr = QLabel("🤝 ONE-TIME PAIRING WIZARD")
+        hdr.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 16px;")
         layout.addWidget(hdr)
 
         card = QFrame()
         card.setObjectName("CardPanel")
         c_layout = QVBoxLayout(card)
         c_layout.setContentsMargins(20, 20, 20, 20)
-        c_layout.setSpacing(12)
+        c_layout.setSpacing(14)
 
-        lbl_step1 = QLabel("Step 1: Initiator — Generate & Send Invite")
-        lbl_step1.setStyleSheet("font-weight: bold; color: #EEF0F8; font-size: 13px;")
+        lbl_step1 = QLabel("Step 1: Initiator — Generate & Send Invite Payload")
+        lbl_step1.setStyleSheet(f"font-weight: bold; color: {COLOR_TEXT_MAIN}; font-size: 13px;")
         c_layout.addWidget(lbl_step1)
 
         self.txt_invite_out = QTextEdit()
@@ -487,16 +520,16 @@ class DerfMainWindow(QMainWindow):
 
         c_layout.addSpacing(10)
 
-        lbl_step2 = QLabel("Step 2: Responder — Process Reply & Complete")
-        lbl_step2.setStyleSheet("font-weight: bold; color: #EEF0F8; font-size: 13px;")
+        lbl_step2 = QLabel("Step 2: Responder — Process Invite / Paste Reply")
+        lbl_step2.setStyleSheet(f"font-weight: bold; color: {COLOR_TEXT_MAIN}; font-size: 13px;")
         c_layout.addWidget(lbl_step2)
 
         self.txt_reply_in = QTextEdit()
         self.txt_reply_in.setFixedHeight(80)
-        self.txt_reply_in.setPlaceholderText("Paste responder reply here or invite payload if responding...")
+        self.txt_reply_in.setPlaceholderText("Paste received invite or reply payload here...")
         c_layout.addWidget(self.txt_reply_in)
 
-        btn_proc_reply = QPushButton("PROCESS REPLY / COMPLETE PAIRING")
+        btn_proc_reply = QPushButton("PROCESS PAYLOAD / COMPLETE PAIRING")
         btn_proc_reply.clicked.connect(self.do_process_reply)
         c_layout.addWidget(btn_proc_reply)
 
@@ -511,8 +544,8 @@ class DerfMainWindow(QMainWindow):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(14)
 
-        hdr = QLabel("🛡️ DERF SECURITY & CRYPTOGRAPHY SPECIFICATIONS")
-        hdr.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 16px;")
+        hdr = QLabel("🛡️ POST-QUANTUM SECURITY SPECIFICATIONS")
+        hdr.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 16px;")
         layout.addWidget(hdr)
 
         scroll = QScrollArea()
@@ -524,12 +557,10 @@ class DerfMainWindow(QMainWindow):
         c_layout.setSpacing(12)
 
         specs = [
-            ("Post-Quantum KEM (ML-KEM-768 / Kyber768)", "Derf uses NIST FIPS 203 ML-KEM-768 post-quantum key encapsulation. Handshakes resist quantum computers running Shor's algorithm."),
-            ("LC-AEAD Chained Encryption", "Per-letter chained ChaCha20-Poly1305 AEAD structure ensures payload integrity, strict message order, and immediate truncation rejection."),
-            ("Signal-Style Double Ratchet", "Every packet advances the key ratchet. Compromising future or past keys yields zero access to prior ciphertexts (Forward Secrecy + Post-Compromise Security)."),
-            ("Unprovable Deniability (X3DH)", "Handshakes rely on symmetric HKDF MAC tags rather than non-repudiable digital signatures. Neither party can prove message authorship to third parties."),
-            ("Uniform Bucket Sizing (LCA2)", "Every ciphertext packet is padded into fixed 256-byte buckets (uniform ~962 character Base64 blocks), preventing length side-channel leaks and fitting Instagram/Discord limits."),
-            ("Vault at Rest (PBKDF2-HMAC-SHA256)", "All identity keys, pending sessions, and contact states are stored on disk encrypted using 600,000 PBKDF2 iterations.")
+            ("NIST ML-KEM-768 (Kyber768)", "Derf uses NIST FIPS 203 ML-KEM-768 post-quantum key encapsulation. Handshakes resist quantum attacks running Shor's algorithm."),
+            ("LC-AEAD Chained Encryption", "Per-letter chained ChaCha20-Poly1305 AEAD structure ensures payload integrity, message ordering, and truncation rejection."),
+            ("Deniable Double Ratchet", "Axolotl-style double ratchet with per-message ephemeral key replacement provides complete Forward Secrecy and Post-Compromise Security."),
+            ("Uniform Size Dummy Masking", "All ciphertext packets are padded to fixed uniform bucket sizes to prevent packet length traffic analysis.")
         ]
 
         for title, desc in specs:
@@ -540,12 +571,12 @@ class DerfMainWindow(QMainWindow):
             l.setSpacing(6)
 
             t = QLabel(f"⚡ {title}")
-            t.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 13px;")
+            t.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 13px;")
             l.addWidget(t)
 
             d = QLabel(desc)
             d.setWordWrap(True)
-            d.setStyleSheet("color: #858FA6; font-size: 12px;")
+            d.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 12px; line-height: 1.4;")
             l.addWidget(d)
 
             c_layout.addWidget(card)
@@ -562,7 +593,7 @@ class DerfMainWindow(QMainWindow):
         layout.setSpacing(16)
 
         hdr = QLabel("⚙️ PROFILE & SECURITY SETTINGS")
-        hdr.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 16px;")
+        hdr.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 16px;")
         layout.addWidget(hdr)
 
         card = QFrame()
@@ -572,7 +603,7 @@ class DerfMainWindow(QMainWindow):
         l.setSpacing(12)
 
         lbl_pk = QLabel("Your LCAP1- Public Key (Share with contacts to pair):")
-        lbl_pk.setStyleSheet("font-weight: bold; color: #EEF0F8; font-size: 12px;")
+        lbl_pk.setStyleSheet(f"font-weight: bold; color: {COLOR_TEXT_MAIN}; font-size: 12px;")
         l.addWidget(lbl_pk)
 
         self.txt_my_pk = QTextEdit()
@@ -589,17 +620,16 @@ class DerfMainWindow(QMainWindow):
 
         # Freshness Window Sync Config
         lbl_fresh = QLabel("Freshness Tolerance Window (Seconds):")
-        lbl_fresh.setStyleSheet("font-weight: bold; color: #EEF0F8; font-size: 12px;")
+        lbl_fresh.setStyleSheet(f"font-weight: bold; color: {COLOR_TEXT_MAIN}; font-size: 12px;")
         l.addWidget(lbl_fresh)
 
         fresh_box = QHBoxLayout()
         self.spin_fresh = QSpinBox()
         self.spin_fresh.setRange(60, 86400)
         self.spin_fresh.setValue(int(Derf.FRESH))
-        self.spin_fresh.setStyleSheet("background-color: #131418; color: #00F0FF; border: 1px solid #292C38; padding: 6px; border-radius: 6px;")
         fresh_box.addWidget(self.spin_fresh)
 
-        btn_save_fresh = QPushButton("SAVE WINDOW TOLERANCE")
+        btn_save_fresh = QPushButton("SAVE TOLERANCE WINDOW")
         btn_save_fresh.clicked.connect(self.do_save_freshness)
         fresh_box.addWidget(btn_save_fresh)
         l.addLayout(fresh_box)
@@ -637,9 +667,9 @@ class DerfMainWindow(QMainWindow):
         self.selected_peer = name
         contacts = Derf.contacts_load()
         if name in contacts:
-            fp = Derf.id_fp(contacts[name])
+            fp = Derf.id_fp(contacts[name]).hex()
             self.lbl_chat_contact.setText(f"💬 Chatting with {name}")
-            self.lbl_chat_fp.setText(f"FP: {fp}")
+            self.lbl_chat_fp.setText(f"FP: {fp[:16]}...")
 
     def do_add_contact_dialog(self):
         dlg = AddContactDialog(self)
@@ -685,8 +715,8 @@ class DerfMainWindow(QMainWindow):
             cipher_text = Derf.encrypt_alien_stack(msg, self.selected_peer, self.idn)
             if cipher_text:
                 Derf.safe_copy(cipher_text)
-                self.chat_display.append(f"<font color='#858FA6'><b>Me:</b></font> <font color='#EEF0F8'>{msg}</font>")
-                self.chat_display.append(f"<font color='#00F0FF'><i>[Ciphertext generated & copied to clipboard!]</i></font>\n")
+                self.chat_display.append(f"<font color='{COLOR_TEXT_MUTED}'><b>Me:</b></font> <font color='{COLOR_TEXT_MAIN}'>{msg}</font>")
+                self.chat_display.append(f"<font color='{COLOR_CYAN_ACCENT}'><i>[Ciphertext generated & copied to clipboard!]</i></font>\n")
                 self.txt_msg.clear()
             else:
                 QMessageBox.critical(self, "Encryption Error", f"Failed to encrypt for {self.selected_peer}. Perform key exchange/pairing first.")
@@ -751,7 +781,7 @@ class DerfMainWindow(QMainWindow):
 
     def do_save_freshness(self):
         val = self.spin_fresh.value()
-        Derf.FRESH = val
+        Derf.FRESH = float(val)
         with open(Derf.P("lc_fresh.json"), "w") as f:
             json.dump({"fresh": val}, f)
         QMessageBox.information(self, "Saved", f"Freshness tolerance window set to {val} seconds.")
@@ -760,7 +790,6 @@ class DerfMainWindow(QMainWindow):
 def launch_pyqt_app(profile_name="default"):
     app = QApplication(sys.argv)
 
-    # Store references to prevent garbage collection
     main_win = None
 
     def on_vault_unlocked(vault_bytes, prof_name):
@@ -768,7 +797,6 @@ def launch_pyqt_app(profile_name="default"):
         main_win = DerfMainWindow(vault_bytes, prof_name)
         main_win.show()
 
-        # Start integrated background hotkey service
         class AppRefMock:
             def __init__(self, idn, win):
                 self.idn = idn
