@@ -1,5 +1,5 @@
 # ==========================================
-# DERF QUICK PEEK (Glass Overlay - PyQt6 Thread-Safe)
+# DERF QUICK PEEK (Glassmorphic Translucent Overlay - PyQt6)
 # ==========================================
 import os
 import sys
@@ -24,15 +24,18 @@ try:
 except Exception:
     keyboard = None
 
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, QPushButton
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QPoint
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont, QCursor
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QGraphicsDropShadowEffect
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QEvent
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QLinearGradient, QCursor
 
 IS_WIN32 = (sys.platform == "win32")
 
-BG_OBSIDIAN = QColor(14, 14, 18, 248)      # Glass Obsidian Backdrop
-CYAN_PRIMARY = QColor(0, 240, 255)         # Electric Cyan Accent
-TEXT_MAIN = QColor(238, 240, 248)          # Main text
+# Glassmorphism Color Palette
+GLASS_GRADIENT_TOP = QColor(22, 24, 32, 230)     # Translucent Top
+GLASS_GRADIENT_BOT = QColor(10, 11, 16, 245)     # Translucent Bottom
+GLASS_BORDER_CYAN  = QColor(0, 240, 255, 180)    # Glowing Cyan Accent Border
+GLASS_HIGHLIGHT    = QColor(255, 255, 255, 30)   # Subtle Inner Sheen
+TEXT_MAIN          = QColor(229, 226, 225)       # High-contrast crisp text
 
 def clean_ciphertext_input(text):
     if not text: return ""
@@ -55,25 +58,7 @@ class PeekCardWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(16, 12, 16, 12)
-
-        # Header bar
-        self.hdr_layout = QHBoxLayout()
-        self.hdr_layout.setContentsMargins(0, 0, 0, 6)
-
-        self.lbl_title = QLabel("⚡ QUICK PEEK DECRYPT")
-        self.lbl_title.setStyleSheet("color: #00F0FF; font-weight: 800; font-size: 11px; letter-spacing: 1px;")
-        self.hdr_layout.addWidget(self.lbl_title)
-        self.hdr_layout.addStretch()
-
-        self.btn_close = QPushButton("×")
-        self.btn_close.setFixedSize(18, 18)
-        self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_close.setStyleSheet("QPushButton { color: #8E8E93; background: transparent; border: none; font-size: 15px; font-weight: bold; } QPushButton:hover { color: #00F0FF; }")
-        self.btn_close.clicked.connect(self.hide)
-        self.hdr_layout.addWidget(self.btn_close)
-
-        self.layout.addLayout(self.hdr_layout)
+        self.layout.setContentsMargins(18, 16, 18, 16)
 
         # Message content box
         self.text_widget = QTextEdit()
@@ -82,16 +67,17 @@ class PeekCardWidget(QWidget):
             QTextEdit {
                 background-color: transparent;
                 color: #E5E2E1;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif;
                 font-size: 13px;
                 font-weight: 500;
+                line-height: 1.4;
                 border: none;
                 selection-background-color: #00F0FF;
                 selection-color: #0E0E10;
             }
             QScrollBar:vertical {
                 border: none;
-                background: #181A22;
+                background: rgba(255, 255, 255, 0.05);
                 width: 4px;
                 margin: 0px;
                 border-radius: 2px;
@@ -107,22 +93,40 @@ class PeekCardWidget(QWidget):
         """)
         self.layout.addWidget(self.text_widget)
 
+        # Auto-hide timer
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.hide)
+
+        # Ambient Shadow Effect
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(30)
+        shadow.setColor(QColor(0, 240, 255, 40))
+        shadow.setOffset(0, 8)
+        self.setGraphicsEffect(shadow)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        rect = self.rect().adjusted(2, 2, -2, -2)
         path = QPainterPath()
-        path.addRoundedRect(2.0, 2.0, self.width() - 4.0, self.height() - 4.0, 14.0, 14.0)
+        path.addRoundedRect(rect, 16.0, 16.0)
 
-        # Obsidian Translucent Fill
-        painter.fillPath(path, BG_OBSIDIAN)
+        # Glassmorphic Gradient Background
+        gradient = QLinearGradient(0, 0, 0, self.height())
+        gradient.setColorAt(0.0, GLASS_GRADIENT_TOP)
+        gradient.setColorAt(1.0, GLASS_GRADIENT_BOT)
+        painter.fillPath(path, gradient)
 
-        # Electric Cyan Subtle Border
-        pen = QPen(CYAN_PRIMARY)
+        # Glass Inner Highlight Sheen
+        highlight_path = QPainterPath()
+        highlight_path.addRoundedRect(rect.adjusted(1, 1, -1, -1), 15.0, 15.0)
+        painter.setPen(QPen(GLASS_HIGHLIGHT, 1.0))
+        painter.drawPath(highlight_path)
+
+        # Glowing Accent Border
+        pen = QPen(GLASS_BORDER_CYAN)
         pen.setWidthF(1.5)
         painter.setPen(pen)
         painter.drawPath(path)
@@ -134,20 +138,20 @@ class PeekCardWidget(QWidget):
         screen_w = screen.width()
         screen_h = screen.height()
 
-        max_w = min(520, int(screen_w * 0.45))
-        max_h = min(380, int(screen_h * 0.45))
-        min_w = 280
-        min_h = 100
+        max_w = min(500, int(screen_w * 0.42))
+        max_h = min(360, int(screen_h * 0.42))
+        min_w = 260
+        min_h = 80
 
         char_len = len(text)
         est_lines = max(1, char_len // 32 + text.count('\n'))
 
-        req_w = min(max(char_len * 9 + 48, min_w), max_w)
-        req_h = min(max(est_lines * 22 + 48, min_h), max_h)
+        req_w = min(max(char_len * 9 + 40, min_w), max_w)
+        req_h = min(max(est_lines * 22 + 36, min_h), max_h)
 
         self.resize(req_w, req_h)
 
-        # Position overlay right next to the cursor
+        # Position directly next to mouse cursor
         final_x = min(max(x + 12, 10), screen_w - req_w - 15)
         final_y = min(max(y + 12, 10), screen_h - req_h - 15)
 
@@ -156,8 +160,15 @@ class PeekCardWidget(QWidget):
         self.raise_()
         self.activateWindow()
 
-        # Reset 10-second auto hide timer
-        self.timer.start(10000)
+        # Reset 12-second auto-hide timer
+        self.timer.start(12000)
+
+    def changeEvent(self, event):
+        # Auto-close when clicking outside / losing focus
+        if event.type() == QEvent.Type.ActivationChange:
+            if not self.isActiveWindow():
+                self.hide()
+        super().changeEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
