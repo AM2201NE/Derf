@@ -157,27 +157,9 @@ def do_hotkey_encrypt():
         cipher_text = encrypt_alien_stack(selected_text, peer, idn)
         if not cipher_text: return
 
-        chunks = [b.strip() for b in re.split(r'\n\s*\n', cipher_text.strip()) if b.strip() and "DERF:V1:" in b]
-        if not chunks:
-            chunks = [b.strip() for b in cipher_text.strip().split('\n') if b.strip()]
-
-        if len(chunks) == 1:
-            safe_clip_copy(chunks[0])
-            time.sleep(0.03)
-            trigger_paste_native()
-        else:
-            for chunk in chunks:
-                safe_clip_copy(chunk)
-                time.sleep(0.03)
-                trigger_paste_native()
-                time.sleep(0.04)
-                if IS_WINDOWS:
-                    user32.keybd_event(0x0D, 0, 0, 0)
-                    user32.keybd_event(0x0D, 0, KEYEVENTF_KEYUP, 0)
-                elif kb_controller:
-                    kb_controller.press(Key.enter)
-                    kb_controller.release(Key.enter)
-                time.sleep(0.18)
+        safe_clip_copy(cipher_text)
+        time.sleep(0.03)
+        trigger_paste_native()
 
         if notification:
             notification.notify(

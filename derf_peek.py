@@ -1,13 +1,13 @@
 # ==========================================
-# DERF QUICK PEEK (The "Glass Card" Overlay)
+# DERF QUICK PEEK (Apple Squircle Glass Overlay)
 # ==========================================
 import os
 import sys
 import time
+import math
 import base64
 import pyperclip
 
-# Safely import core logic from your main app without triggering the Kivy UI
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 try:
     from Derf import (
@@ -35,36 +35,32 @@ if IS_WIN32:
     import win32gui
     import win32con
 
-# ================= DERF STITCH DESIGN TOKENS =================
-BG_OBSIDIAN = "#0E0E10"      # Main background
-CYAN_PRIMARY = "#00F0FF"     # Accent/Header
+BG_OBSIDIAN = "#0E0E10"      # Glass Obsidian Backdrop
+CYAN_PRIMARY = "#00F0FF"     # Electric Cyan Accent
 TEXT_MAIN = "#EEF0F8"        # Main text
-BORDER_COLOR = "#292C38"     # Subtle border
-# =============================================================
+SCROLL_THUMB = "#00F0FF"     # Subtle 3px Scrollbar Pill
+SCROLL_TROUGH = "#181A22"    # Subtle scrollbar trough
 
-import math
-
-def draw_apple_squircle(canvas, x1, y1, x2, y2, radius_pct=0.2237, smoothness=0.60, **kwargs):
+def generate_apple_squircle(x1, y1, x2, y2, radius_pct=0.2237, smoothness=0.60, points_count=128):
     w = x2 - x1
     h = y2 - y1
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
     n = 3.2 + (smoothness * 2.0)
+    half_w = w / 2.0
+    half_h = h / 2.0
 
-    points = []
-    steps = 64
-    for i in range(steps):
-        angle = (2 * math.pi * i) / steps
+    pts = []
+    for i in range(points_count):
+        angle = (2.0 * math.pi * i) / points_count
         cos_a = math.cos(angle)
         sin_a = math.sin(angle)
-
-        sign_x = 1 if cos_a >= 0 else -1
-        sign_y = 1 if sin_a >= 0 else -1
-
-        px = (w / 2.0) * (abs(cos_a) ** (2.0 / n)) * sign_x + (x1 + w / 2.0)
-        py = (h / 2.0) * (abs(sin_a) ** (2.0 / n)) * sign_y + (y1 + h / 2.0)
-
-        points.extend([px, py])
-
-    return canvas.create_polygon(points, smooth=True, **kwargs)
+        sign_x = 1.0 if cos_a >= 0 else -1.0
+        sign_y = 1.0 if sin_a >= 0 else -1.0
+        px = cx + half_w * (abs(cos_a) ** (2.0 / n)) * sign_x
+        py = cy + half_h * (abs(sin_a) ** (2.0 / n)) * sign_y
+        pts.extend([px, py])
+    return pts
 
 def clean_ciphertext_input(text):
     if not text: return ""
@@ -85,9 +81,11 @@ class PeekCard:
         self.root = None
         self.canvas = None
         self.text_widget = None
-        self.scrollbar = None
+        self.scroll_canvas = None
         self.text_frame = None
         self._timer_id = None
+        self._req_w = 320
+        self._req_h = 140
 
     def init_ui(self):
         if not tk:
@@ -95,11 +93,9 @@ class PeekCard:
         self.root = tk.Tk()
         self.root.title("Derf Peek Glass")
 
-        # Frameless & Always On Top
         self.root.overrideredirect(True)
         self.root.attributes('-topmost', True)
 
-        # Transparency Keying for true borderless rounded glass
         TRANS_KEY = "#000001"
         self.root.configure(bg=TRANS_KEY)
         if IS_WIN32:
@@ -108,7 +104,6 @@ class PeekCard:
             except Exception:
                 pass
 
-        # Native Windows Drop Shadow
         if IS_WIN32:
             try:
                 hwnd = win32gui.GetParent(self.root.winfo_id())
@@ -117,29 +112,30 @@ class PeekCard:
             except Exception:
                 pass
 
-        # Canvas for smooth rounded glass card background
         self.canvas = tk.Canvas(self.root, bg=TRANS_KEY, highlightthickness=0, bd=0)
         self.canvas.pack(fill='both', expand=True)
 
-        # Inner Frame holding scrollable Text widget
         self.text_frame = tk.Frame(self.canvas, bg=BG_OBSIDIAN, bd=0)
 
-        self.scrollbar = tk.Scrollbar(self.text_frame, bg=BG_OBSIDIAN, activebackground=CYAN_PRIMARY, troughcolor=BG_OBSIDIAN, bd=0, width=8)
+        self.scroll_canvas = tk.Canvas(self.text_frame, bg=BG_OBSIDIAN, width=6, highlightthickness=0, bd=0)
+
         self.text_widget = tk.Text(self.text_frame, fg=CYAN_PRIMARY, bg=BG_OBSIDIAN,
                                    font=("Segoe UI", 11, "bold"), wrap='word', bd=0, highlightthickness=0,
-                                   padx=12, pady=10, yscrollcommand=self.scrollbar.set, insertbackground=CYAN_PRIMARY)
-        self.scrollbar.config(command=self.text_widget.yview)
+                                   padx=14, pady=12, insertbackground=CYAN_PRIMARY)
 
-        self.scrollbar.pack(side='right', fill='y')
+        def _on_text_scroll(first, last):
+            self._update_scroll_pill(float(first), float(last))
+
+        self.text_widget.config(yscrollcommand=_on_text_scroll)
+
+        self.scroll_canvas.pack(side='right', fill='y', padx=(0, 4), pady=10)
         self.text_widget.pack(side='left', fill='both', expand=True)
 
-        # Bindings to dismiss
         self.root.bind('<Escape>', lambda e: self.hide())
         self.root.bind('<FocusOut>', lambda e: self.hide())
         self.canvas.bind('<Button-1>', lambda e: self.hide())
         self.text_widget.bind('<Button-1>', lambda e: self.hide())
 
-        # Mousewheel scrolling bindings
         def _on_mousewheel(event):
             if IS_WIN32:
                 self.text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -148,12 +144,33 @@ class PeekCard:
                     self.text_widget.yview_scroll(-1, "units")
                 elif event.num == 5:
                     self.text_widget.yview_scroll(1, "units")
+            self._update_scroll_pill()
 
         self.text_widget.bind("<MouseWheel>", _on_mousewheel)
         self.text_widget.bind("<Button-4>", _on_mousewheel)
         self.text_widget.bind("<Button-5>", _on_mousewheel)
 
         self.root.withdraw()
+
+    def _update_scroll_pill(self, first=None, last=None):
+        if not self.scroll_canvas: return
+        if first is None or last is None:
+            try:
+                first, last = self.text_widget.yview()
+            except Exception:
+                return
+
+        self.scroll_canvas.delete("all")
+        if first <= 0.0 and last >= 1.0:
+            return
+
+        c_h = self.scroll_canvas.winfo_height()
+        if c_h <= 10: c_h = 100
+
+        y1 = first * c_h
+        y2 = max(last * c_h, y1 + 16)
+
+        self.scroll_canvas.create_rectangle(1, y1, 4, y2, fill=CYAN_PRIMARY, outline="", width=0)
 
     def run(self):
         self.init_ui()
@@ -172,32 +189,29 @@ class PeekCard:
         self.text_widget.insert("1.0", text)
         self.text_widget.config(state="disabled")
 
-        # Screen dimensions
         screen_w = self.root.winfo_screenwidth()
         screen_h = self.root.winfo_screenheight()
 
-        max_w = min(520, int(screen_w * 0.48))
-        max_h = min(380, int(screen_h * 0.48))
-        min_w = 280
+        max_w = min(500, int(screen_w * 0.45))
+        max_h = min(360, int(screen_h * 0.45))
+        min_w = 260
         min_h = 90
 
-        # Calculate dynamic rectangular size based on text length & lines
         char_len = len(text)
-        est_lines = max(1, char_len // 32 + text.count('\n'))
-        req_w = min(max(char_len * 9 + 50, min_w), max_w)
+        est_lines = max(1, char_len // 30 + text.count('\n'))
+
+        req_w = min(max(char_len * 9 + 48, min_w), max_w)
         req_h = min(max(est_lines * 22 + 28, min_h), max_h)
 
+        self._req_w, self._req_h = req_w, req_h
         self.root.geometry(f"{req_w}x{req_h}")
 
-        # Redraw rounded glass card background
         self.canvas.delete("all")
-        draw_apple_squircle(self.canvas, 2, 2, req_w-2, req_h-2, radius_pct=0.2237, smoothness=0.60,
-                            fill=BG_OBSIDIAN, outline=CYAN_PRIMARY, width=1.5)
+        sq_points = generate_apple_squircle(2, 2, req_w-2, req_h-2, radius_pct=0.2237, smoothness=0.60)
+        self.canvas.create_polygon(sq_points, smooth=True, fill=BG_OBSIDIAN, outline=CYAN_PRIMARY, width=1.5)
 
-        # Embed text frame inside canvas
-        self.canvas.create_window(req_w // 2, req_h // 2, window=self.text_frame, width=req_w-6, height=req_h-6)
+        self.canvas.create_window(req_w // 2, req_h // 2, window=self.text_frame, width=req_w-8, height=req_h-8)
 
-        # Position near cursor, ensuring window stays on screen
         final_x = min(max(x + 15, 10), screen_w - req_w - 20)
         final_y = min(max(y + 15, 10), screen_h - req_h - 20)
 
@@ -224,9 +238,7 @@ class PeekCard:
         if self.root:
             self.root.withdraw()
 
-# ================= DECRYPTION ENGINE =================
 def decrypt_payload(raw_block):
-    """Minimal, robust decryption logic for the Peek tool using Alien Stack"""
     try:
         raw_idn = vload(P("lc_identity.json"))
         idn = norm_identity(raw_idn)
@@ -235,21 +247,16 @@ def decrypt_payload(raw_block):
         print(f"[!] Decryption error: {e}")
         return None
 
-# ================= MAIN EXECUTION =================
 if __name__ == "__main__":
     peek_card = PeekCard()
 
     def trigger_peek():
-        """Triggered by Alt+Shift+Q"""
         try:
-            # 1. Copy currently highlighted text
             if keyboard:
                 keyboard.send('ctrl+c')
             time.sleep(0.15)
 
             selected_text = clean_ciphertext_input(pyperclip.paste())
-
-            # 2. Check if it's a Derf message
             selected_text = clean_ciphertext_input(selected_text)
             if "DERF:V1:" in selected_text:
                 decrypted = decrypt_payload(selected_text)

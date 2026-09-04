@@ -293,16 +293,30 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
 DROP_DIR = P("lc_drop")
 os.makedirs(DROP_DIR, exist_ok=True)
 
-_LOCK = None
+_LOCK_FILE = None
 def _single():
-    global _LOCK
+    global _LOCK_FILE
     if IS_SELFTEST: return True
-    _LOCK = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    lock_path = P(".instance.lock")
     try:
-        _LOCK.bind(("127.0.0.1", 59731))
+        if sys.platform == "win32":
+            import msvcrt
+            _LOCK_FILE = open(lock_path, "a+b")
+            try:
+                msvcrt.locking(_LOCK_FILE.fileno(), msvcrt.LK_NCKBL, 1)
+                return True
+            except IOError:
+                return False
+        else:
+            import fcntl
+            _LOCK_FILE = open(lock_path, "a+b")
+            try:
+                fcntl.flock(_LOCK_FILE, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return True
+            except IOError:
+                return False
+    except Exception:
         return True
-    except OSError:
-        return False
 
 # ================= PQ backend (ML-KEM-768) =================
 EK, DK, CT, SS = 1184, 2400, 1088, 32
@@ -2098,22 +2112,9 @@ def start_integrated_background_service(app_ref):
             cipher_text = encrypt_alien_stack(selected_text, peer, app_ref.idn)
             if not cipher_text: return
 
-            chunks = [b.strip() for b in re.split(r'\n\s*\n', cipher_text.strip()) if b.strip() and "DERF:V1:" in b]
-            if not chunks:
-                chunks = [b.strip() for b in cipher_text.strip().split('\n') if b.strip()]
-
-            if len(chunks) == 1:
-                safe_copy(chunks[0])
-                time.sleep(0.03)
-                trigger_paste_native()
-            else:
-                for chunk in chunks:
-                    safe_copy(chunk)
-                    time.sleep(0.03)
-                    trigger_paste_native()
-                    time.sleep(0.04)
-                    send_enter_native()
-                    time.sleep(0.18)
+            safe_copy(cipher_text)
+            time.sleep(0.03)
+            trigger_paste_native()
         except Exception as e:
             print(f"Hotkey BG error: {repr(e)}")
         finally:
