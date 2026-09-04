@@ -58,7 +58,7 @@ class PeekCardWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(18, 16, 18, 16)
+        self.layout.setContentsMargins(16, 14, 16, 14)
 
         # Message content box
         self.text_widget = QTextEdit()
@@ -77,15 +77,18 @@ class PeekCardWidget(QWidget):
             }
             QScrollBar:vertical {
                 border: none;
-                background: rgba(255, 255, 255, 0.05);
-                width: 4px;
+                background: rgba(255, 255, 255, 0.03);
+                width: 3px;
                 margin: 0px;
-                border-radius: 2px;
+                border-radius: 1px;
             }
             QScrollBar::handle:vertical {
+                background: rgba(0, 240, 255, 0.45);
+                min-height: 14px;
+                border-radius: 1px;
+            }
+            QScrollBar::handle:vertical:hover {
                 background: #00F0FF;
-                min-height: 16px;
-                border-radius: 2px;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
@@ -100,9 +103,9 @@ class PeekCardWidget(QWidget):
 
         # Ambient Shadow Effect
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(30)
-        shadow.setColor(QColor(0, 240, 255, 40))
-        shadow.setOffset(0, 8)
+        shadow.setBlurRadius(24)
+        shadow.setColor(QColor(0, 240, 255, 35))
+        shadow.setOffset(0, 6)
         self.setGraphicsEffect(shadow)
 
     def paintEvent(self, event):
@@ -140,16 +143,17 @@ class PeekCardWidget(QWidget):
         screen_w = screen.width()
         screen_h = screen.height()
 
-        max_w = min(500, int(screen_w * 0.42))
-        max_h = min(360, int(screen_h * 0.42))
+        # Strict screen-size relative expansion caps
+        max_w = min(460, int(screen_w * 0.35))
+        max_h = min(280, int(screen_h * 0.30))
         min_w = 260
         min_h = 80
 
         char_len = len(text)
         est_lines = max(1, char_len // 32 + text.count('\n'))
 
-        req_w = min(max(char_len * 9 + 40, min_w), max_w)
-        req_h = min(max(est_lines * 22 + 36, min_h), max_h)
+        req_w = min(max(char_len * 8 + 36, min_w), max_w)
+        req_h = min(max(est_lines * 20 + 32, min_h), max_h)
 
         self.resize(req_w, req_h)
 
