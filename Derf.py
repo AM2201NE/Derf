@@ -216,7 +216,8 @@ def decrypt_alien_stack(raw_text, idn_data, custom_session_loader=None):
 
         # Try Base64 first (default standard)
         try:
-            clean_b64 = re.sub(r'[^A-Za-z0-9+/=]+', '', raw_block)
+            b64_match = re.search(r'([A-Za-z0-9+/=]{100,})', re.sub(r'^[~\*_`\s]+', '', raw_block))
+            clean_b64 = b64_match.group(1) if b64_match else re.sub(r'[^A-Za-z0-9+/=]+', '', raw_block)
             combined_binary = base64.b64decode(clean_b64)
             if len(combined_binary) % PACKET == 0 and len(combined_binary) > 0:
                 pkts = [combined_binary[i:i + PACKET] for i in range(0, len(combined_binary), PACKET)]
@@ -1999,13 +2000,25 @@ else:
         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
 
     def trigger_paste_native():
-        if kb_controller:
-            for k in [Key.alt, Key.alt_l, Key.alt_r, Key.shift, Key.shift_l, Key.shift_r, Key.ctrl, Key.ctrl_l, Key.ctrl_r]:
-                try: kb_controller.release(k)
-                except Exception: pass
+        release_modifiers_native()
+        if IS_WINDOWS:
+            user32.keybd_event(VK_CONTROL, 0, 0, 0)
+            user32.keybd_event(ord('V'), 0, 0, 0)
+            user32.keybd_event(ord('V'), 0, KEYEVENTF_KEYUP, 0)
+            user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        elif kb_controller:
             with kb_controller.pressed(Key.ctrl):
                 kb_controller.press('v')
                 kb_controller.release('v')
+
+    def send_enter_native():
+        release_modifiers_native()
+        if IS_WINDOWS:
+            user32.keybd_event(0x0D, 0, 0, 0)
+            user32.keybd_event(0x0D, 0, KEYEVENTF_KEYUP, 0)
+        elif kb_controller:
+            kb_controller.press(Key.enter)
+            kb_controller.release(Key.enter)
 
 _bg_hotkey_lock = threading.Lock()
 
@@ -2037,10 +2050,24 @@ def start_integrated_background_service(app_ref):
             if not peer or not os.path.exists(P(f"lc_session_{peer}.json")): return
 
             cipher_text = encrypt_alien_stack(selected_text, peer, app_ref.idn)
-            safe_copy(cipher_text)
+            if not cipher_text: return
 
-            time.sleep(0.02)
-            trigger_paste_native()
+            chunks = [b.strip() for b in re.split(r'\n\s*\n', cipher_text.strip()) if b.strip() and "DERF:V1:" in b]
+            if not chunks:
+                chunks = [b.strip() for b in cipher_text.strip().split('\n') if b.strip()]
+
+            if len(chunks) == 1:
+                safe_copy(chunks[0])
+                time.sleep(0.03)
+                trigger_paste_native()
+            else:
+                for chunk in chunks:
+                    safe_copy(chunk)
+                    time.sleep(0.03)
+                    trigger_paste_native()
+                    time.sleep(0.04)
+                    send_enter_native()
+                    time.sleep(0.18)
         except Exception as e:
             print(f"Hotkey BG error: {repr(e)}")
         finally:

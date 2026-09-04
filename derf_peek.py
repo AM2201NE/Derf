@@ -85,7 +85,9 @@ class PeekCard:
     def __init__(self):
         self.root = None
         self.canvas = None
-        self.label = None
+        self.text_widget = None
+        self.scrollbar = None
+        self.text_frame = None
         self._timer_id = None
 
     def init_ui(self):
@@ -116,19 +118,41 @@ class PeekCard:
             except Exception:
                 pass
 
-        # Canvas for smooth rounded glass card
+        # Canvas for smooth rounded glass card background
         self.canvas = tk.Canvas(self.root, bg=TRANS_KEY, highlightthickness=0, bd=0)
         self.canvas.pack(fill='both', expand=True)
 
-        # Label embedded inside canvas for decrypted text
-        self.label = tk.Label(self.canvas, text="", fg=CYAN_PRIMARY, bg=BG_OBSIDIAN,
-                              font=("Segoe UI", 11, "bold"), justify='left', wraplength=420)
+        # Inner Frame holding scrollable Text widget
+        self.text_frame = tk.Frame(self.canvas, bg=BG_OBSIDIAN, bd=0)
+
+        self.scrollbar = tk.Scrollbar(self.text_frame, bg=BG_OBSIDIAN, activebackground=CYAN_PRIMARY, troughcolor=BG_OBSIDIAN, bd=0, width=8)
+        self.text_widget = tk.Text(self.text_frame, fg=CYAN_PRIMARY, bg=BG_OBSIDIAN,
+                                   font=("Segoe UI", 11, "bold"), wrap='word', bd=0, highlightthickness=0,
+                                   padx=12, pady=10, yscrollcommand=self.scrollbar.set, insertbackground=CYAN_PRIMARY)
+        self.scrollbar.config(command=self.text_widget.yview)
+
+        self.scrollbar.pack(side='right', fill='y')
+        self.text_widget.pack(side='left', fill='both', expand=True)
 
         # Bindings to dismiss
         self.root.bind('<Escape>', lambda e: self.hide())
         self.root.bind('<FocusOut>', lambda e: self.hide())
         self.canvas.bind('<Button-1>', lambda e: self.hide())
-        self.label.bind('<Button-1>', lambda e: self.hide())
+        self.text_widget.bind('<Button-1>', lambda e: self.hide())
+
+        # Mousewheel scrolling bindings
+        def _on_mousewheel(event):
+            if IS_WIN32:
+                self.text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            else:
+                if event.num == 4:
+                    self.text_widget.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    self.text_widget.yview_scroll(1, "units")
+
+        self.text_widget.bind("<MouseWheel>", _on_mousewheel)
+        self.text_widget.bind("<Button-4>", _on_mousewheel)
+        self.text_widget.bind("<Button-5>", _on_mousewheel)
 
         self.root.withdraw()
 
@@ -141,38 +165,46 @@ class PeekCard:
         if not self.root:
             print(f"[DERF PEEK] {text}")
             return
-        # Thread-safe dispatch on Tkinter event loop
         self.root.after(0, lambda: self._show_impl(text, x, y))
 
     def _show_impl(self, text, x, y):
-        self.label.config(text=text)
+        self.text_widget.config(state="normal")
+        self.text_widget.delete("1.0", "end")
+        self.text_widget.insert("1.0", text)
+        self.text_widget.config(state="disabled")
 
-        # Calculate dynamic size based on text length
-        self.label.update_idletasks()
-        req_w = min(max(self.label.winfo_reqwidth() + 32, 180), 460)
-        req_h = self.label.winfo_reqheight() + 24
+        # Screen dimensions
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+
+        max_w = min(520, int(screen_w * 0.48))
+        max_h = min(380, int(screen_h * 0.48))
+        min_w = 280
+        min_h = 90
+
+        # Calculate dynamic rectangular size based on text length & lines
+        char_len = len(text)
+        est_lines = max(1, char_len // 32 + text.count('\n'))
+        req_w = min(max(char_len * 9 + 50, min_w), max_w)
+        req_h = min(max(est_lines * 22 + 28, min_h), max_h)
 
         self.root.geometry(f"{req_w}x{req_h}")
 
-        # Clear & redraw rounded glass card background
+        # Redraw rounded glass card background
         self.canvas.delete("all")
         draw_rounded_rect(self.canvas, 2, 2, req_w-2, req_h-2, radius=14,
                           fill=BG_OBSIDIAN, outline=CYAN_PRIMARY, width=1.5)
 
-        # Position text label at center of canvas
-        self.canvas.create_window(req_w // 2, req_h // 2, window=self.label, anchor='center')
+        # Embed text frame inside canvas
+        self.canvas.create_window(req_w // 2, req_h // 2, window=self.text_frame, width=req_w-6, height=req_h-6)
 
         # Position near cursor, ensuring window stays on screen
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-
         final_x = min(max(x + 15, 10), screen_w - req_w - 20)
         final_y = min(max(y + 15, 10), screen_h - req_h - 20)
 
         self.root.geometry(f"+{final_x}+{final_y}")
         self.root.deiconify()
 
-        # Enforce Win32 HWND_TOPMOST z-order layer above all opened apps
         if IS_WIN32:
             try:
                 hwnd = win32gui.GetParent(self.root.winfo_id())
@@ -187,7 +219,7 @@ class PeekCard:
         if self._timer_id:
             try: self.root.after_cancel(self._timer_id)
             except Exception: pass
-        self._timer_id = self.root.after(6000, self.hide)
+        self._timer_id = self.root.after(10000, self.hide)
 
     def hide(self):
         if self.root:
