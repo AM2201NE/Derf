@@ -453,15 +453,16 @@ def clean_b64(r):
 def valid_pub(b): return isinstance(b, (bytes, bytearray)) and len(b) == EK
 
 def parse_pubkey(t):
-    raw = clean_b64(t)
-    for p in ("LCAP1+", "LCAP1-"):
-        if raw.startswith(p):
-            raw = raw[len(p):]
+    if not t: raise ValueError("Key is empty")
+    t = str(t).strip()
+    for p in ("LCAP1+", "LCAP1-", "LCAP1"):
+        if t.startswith(p):
+            t = t[len(p):]
             break
-    raw += "=" * (-len(raw) % 4)
-    b = base64.b64decode(raw, validate=True)
+    raw = clean_b64(t)
+    b = ub64(raw)
     if not valid_pub(b):
-        raise ValueError("Not a valid PUBLIC key (wrong length). Copy the LCAP1- public key.")
+        raise ValueError(f"Not a valid PUBLIC key (got {len(b)} bytes, expected {EK}). Copy the LCAP1- public key.")
     return b
 
 def norm_identity(d):
@@ -2253,10 +2254,27 @@ except ImportError:
     pass # Not on Android, ignore
 
 def main():
+    profile_name = "default"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--profile="):
+            profile_name = arg.split("=", 1)[1]
+
     if not _single():
         print("⚠️ Another instance of Derf is already running.")
         sys.exit(1)
-    DerfApp().run()
+
+    global PQ_KEM
+    try:
+        PQ_KEM = _load_pq()
+    except Exception as e:
+        print(f"FATAL: Post-Quantum backend failed to initialize: {e}")
+        sys.exit(1)
+
+    try:
+        import derf_qt_ui
+        derf_qt_ui.launch_pyqt_app(profile_name)
+    except ImportError:
+        DerfApp().run()
 
 if __name__ == "__main__":
     main()
