@@ -109,19 +109,21 @@ class PeekCardWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        rect = self.rect().adjusted(2, 2, -2, -2)
+        w = float(self.width())
+        h = float(self.height())
+
         path = QPainterPath()
-        path.addRoundedRect(rect, 16.0, 16.0)
+        path.addRoundedRect(2.0, 2.0, w - 4.0, h - 4.0, 16.0, 16.0)
 
         # Glassmorphic Gradient Background
-        gradient = QLinearGradient(0, 0, 0, self.height())
+        gradient = QLinearGradient(0.0, 0.0, 0.0, h)
         gradient.setColorAt(0.0, GLASS_GRADIENT_TOP)
         gradient.setColorAt(1.0, GLASS_GRADIENT_BOT)
         painter.fillPath(path, gradient)
 
         # Glass Inner Highlight Sheen
         highlight_path = QPainterPath()
-        highlight_path.addRoundedRect(rect.adjusted(1, 1, -1, -1), 15.0, 15.0)
+        highlight_path.addRoundedRect(3.0, 3.0, w - 6.0, h - 6.0, 15.0, 15.0)
         painter.setPen(QPen(GLASS_HIGHLIGHT, 1.0))
         painter.drawPath(highlight_path)
 
