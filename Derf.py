@@ -385,7 +385,10 @@ def _load_pq():
         except Exception as e: errs.append(f"{cls.__name__}: {repr(e)}")
     raise RuntimeError("No PQ backend. Errors: " + "; ".join(errs))
 
-PQ_KEM = None
+try:
+    PQ_KEM = _load_pq()
+except Exception:
+    PQ_KEM = None
 
 # ================= symmetric primitives =================
 APP_AAD = b"derf-pqfs-v1"

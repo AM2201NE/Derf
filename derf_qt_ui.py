@@ -788,6 +788,12 @@ class DerfMainWindow(QMainWindow):
 
 
 def launch_pyqt_app(profile_name="default"):
+    if Derf.PQ_KEM is None:
+        try:
+            Derf.PQ_KEM = Derf._load_pq()
+        except Exception as e:
+            print(f"FATAL: Could not load ML-KEM-768 backend: {e}")
+
     app = QApplication(sys.argv)
 
     main_win = None
