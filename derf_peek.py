@@ -1,10 +1,9 @@
 # ==========================================
-# DERF QUICK PEEK (Apple Squircle Glass Overlay - PyQt6 Thread-Safe)
+# DERF QUICK PEEK (Glass Overlay - PyQt6 Thread-Safe)
 # ==========================================
 import os
 import sys
 import time
-import math
 import base64
 import pyperclip
 
@@ -30,40 +29,10 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QPoint
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont, QCursor
 
 IS_WIN32 = (sys.platform == "win32")
-if IS_WIN32:
-    try:
-        import win32gui
-        import win32con
-    except Exception:
-        win32gui = None
-        win32con = None
 
-BG_OBSIDIAN = QColor(14, 14, 18, 245)      # Glass Obsidian Backdrop (translucent)
+BG_OBSIDIAN = QColor(14, 14, 18, 248)      # Glass Obsidian Backdrop
 CYAN_PRIMARY = QColor(0, 240, 255)         # Electric Cyan Accent
 TEXT_MAIN = QColor(238, 240, 248)          # Main text
-
-def generate_apple_squircle_path(x, y, w, h, radius_pct=0.2237, smoothness=0.60, points_count=128):
-    cx = x + w / 2.0
-    cy = y + h / 2.0
-    n = 3.2 + (smoothness * 2.0)
-    half_w = w / 2.0
-    half_h = h / 2.0
-
-    path = QPainterPath()
-    for i in range(points_count):
-        angle = (2.0 * math.pi * i) / points_count
-        cos_a = math.cos(angle)
-        sin_a = math.sin(angle)
-        sign_x = 1.0 if cos_a >= 0 else -1.0
-        sign_y = 1.0 if sin_a >= 0 else -1.0
-        px = cx + half_w * (abs(cos_a) ** (2.0 / n)) * sign_x
-        py = cy + half_h * (abs(sin_a) ** (2.0 / n)) * sign_y
-        if i == 0:
-            path.moveTo(px, py)
-        else:
-            path.lineTo(px, py)
-    path.closeSubpath()
-    return path
 
 def clean_ciphertext_input(text):
     if not text: return ""
@@ -86,14 +55,14 @@ class PeekCardWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(14, 10, 14, 10)
+        self.layout.setContentsMargins(16, 12, 16, 12)
 
         # Header bar
         self.hdr_layout = QHBoxLayout()
-        self.hdr_layout.setContentsMargins(0, 0, 0, 4)
+        self.hdr_layout.setContentsMargins(0, 0, 0, 6)
 
-        self.lbl_title = QLabel("⚡ DERF PEEK GLASS")
-        self.lbl_title.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px; letter-spacing: 1px;")
+        self.lbl_title = QLabel("⚡ QUICK PEEK DECRYPT")
+        self.lbl_title.setStyleSheet("color: #00F0FF; font-weight: 800; font-size: 11px; letter-spacing: 1px;")
         self.hdr_layout.addWidget(self.lbl_title)
         self.hdr_layout.addStretch()
 
@@ -112,10 +81,10 @@ class PeekCardWidget(QWidget):
         self.text_widget.setStyleSheet("""
             QTextEdit {
                 background-color: transparent;
-                color: #00F0FF;
-                font-family: 'Segoe UI', 'SF Pro Text', sans-serif;
+                color: #E5E2E1;
+                font-family: 'Segoe UI', 'Inter', sans-serif;
                 font-size: 13px;
-                font-weight: 600;
+                font-weight: 500;
                 border: none;
                 selection-background-color: #00F0FF;
                 selection-color: #0E0E10;
@@ -146,13 +115,13 @@ class PeekCardWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw Apple Squircle path
-        path = generate_apple_squircle_path(2, 2, self.width() - 4, self.height() - 4, radius_pct=0.2237, smoothness=0.60)
+        path = QPainterPath()
+        path.addRoundedRect(2.0, 2.0, self.width() - 4.0, self.height() - 4.0, 14.0, 14.0)
 
         # Obsidian Translucent Fill
         painter.fillPath(path, BG_OBSIDIAN)
 
-        # Electric Cyan Subtle Glowing Border
+        # Electric Cyan Subtle Border
         pen = QPen(CYAN_PRIMARY)
         pen.setWidthF(1.5)
         painter.setPen(pen)
@@ -178,8 +147,9 @@ class PeekCardWidget(QWidget):
 
         self.resize(req_w, req_h)
 
-        final_x = min(max(x + 15, 10), screen_w - req_w - 20)
-        final_y = min(max(y + 15, 10), screen_h - req_h - 20)
+        # Position overlay right next to the cursor
+        final_x = min(max(x + 12, 10), screen_w - req_w - 15)
+        final_y = min(max(y + 12, 10), screen_h - req_h - 15)
 
         self.move(final_x, final_y)
         self.show()
@@ -203,7 +173,6 @@ class PeekCard(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.widget = None
-        # Connect signals with explicit QueuedConnection to guarantee execution on the Main GUI Thread
         self.show_signal.connect(self._on_show, Qt.ConnectionType.QueuedConnection)
         self.hide_signal.connect(self._on_hide, Qt.ConnectionType.QueuedConnection)
 
@@ -223,7 +192,6 @@ class PeekCard(QObject):
         self.hide_signal.emit()
 
     def run(self):
-        # Legacy placeholder for compatibility
         pass
 
 

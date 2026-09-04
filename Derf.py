@@ -978,11 +978,16 @@ def start_integrated_background_service(app_ref):
                 decrypted = decrypt_alien_stack(selected_text, idn, custom_session_loader=load_sim_bob_session_standalone)
                 if decrypted:
                     x, y = 200, 200
-                    if IS_WINDOWS:
-                        try:
-                            import win32gui
-                            x, y = win32gui.GetCursorPos()
-                        except Exception: pass
+                    try:
+                        from PyQt6.QtGui import QCursor
+                        pos = QCursor.pos()
+                        x, y = pos.x(), pos.y()
+                    except Exception:
+                        if IS_WINDOWS:
+                            try:
+                                import win32gui
+                                x, y = win32gui.GetCursorPos()
+                            except Exception: pass
 
                     if peek_card_inst and hasattr(peek_card_inst, 'show'):
                         peek_card_inst.show(decrypted, x, y)
