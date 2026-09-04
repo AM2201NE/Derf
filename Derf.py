@@ -35,6 +35,13 @@ try:
 except Exception:
     notification = None
 
+IS_WINDOWS = (sys.platform == "win32")
+
+try:
+    import keyboard as py_keyboard
+except Exception:
+    py_keyboard = None
+
 try:
     from pynput import keyboard
     from pynput.keyboard import Controller, Key
@@ -924,7 +931,18 @@ def start_integrated_background_service(app_ref):
         except Exception:
             pass
 
-    if keyboard:
+    hotkey_registered = False
+    if py_keyboard:
+        try:
+            py_keyboard.add_hotkey('alt+shift+d', do_bg_hotkey_encrypt)
+            py_keyboard.add_hotkey('ctrl+shift+e', do_bg_hotkey_encrypt)
+            py_keyboard.add_hotkey('alt+shift+q', do_peek_decrypt)
+            hotkey_registered = True
+            print("[*] Native Global Hotkeys active via keyboard module (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q)")
+        except Exception as e:
+            print(f"keyboard module hotkey status: {repr(e)}")
+
+    if not hotkey_registered and keyboard:
         try:
             listener = keyboard.GlobalHotKeys({
                 '<alt>+<shift>+d': do_bg_hotkey_encrypt,
@@ -932,9 +950,9 @@ def start_integrated_background_service(app_ref):
                 '<alt>+<shift>+q': do_peek_decrypt
             })
             listener.start()
-            print("[*] Integrated Background Hotkey Listener active (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q)")
+            print("[*] Integrated Background Hotkey Listener active via pynput (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q)")
         except Exception as e:
-            print(f"Hotkey listener status: {repr(e)}")
+            print(f"pynput listener status: {repr(e)}")
 
     def bg_clip_monitor():
         last_clip = ""
@@ -945,7 +963,7 @@ def start_integrated_background_service(app_ref):
                 if clip_text and clip_text != last_clip and "DERF:V1:" in clip_text:
                     last_clip = clip_text
                     if not hasattr(app_ref, 'idn') or not app_ref.idn: continue
-                    dec_msg = decrypt_alien_stack(clip_text, app_ref.idn, custom_session_loader=app_ref.main_screen.load_sim_bob_session)
+                    dec_msg = decrypt_alien_stack(clip_text, app_ref.idn, custom_session_loader=load_sim_bob_session_standalone)
             except Exception:
                 pass
 

@@ -469,15 +469,40 @@ class DerfMainWindow(QMainWindow):
 
         layout.addWidget(hdr_box)
 
-        # Chat Display
+        # Chat Display History
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
         layout.addWidget(self.chat_display)
 
-        # Input Row
+        # Decrypt Received Ciphertext Panel
+        dec_box = QFrame()
+        dec_box.setObjectName("CardPanel")
+        dec_layout = QVBoxLayout(dec_box)
+        dec_layout.setContentsMargins(12, 10, 12, 10)
+        dec_layout.setSpacing(8)
+
+        lbl_dec = QLabel("🔓 Decrypt Received Message Packet:")
+        lbl_dec.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 12px;")
+        dec_layout.addWidget(lbl_dec)
+
+        dec_row = QHBoxLayout()
+        self.txt_dec_in = QLineEdit()
+        self.txt_dec_in.setPlaceholderText("Paste received DERF:V1: packet here to decrypt...")
+        self.txt_dec_in.returnPressed.connect(self.do_decrypt_message)
+        dec_row.addWidget(self.txt_dec_in)
+
+        btn_dec_paste = QPushButton("PASTE & DECRYPT")
+        btn_dec_paste.setObjectName("SecondaryButton")
+        btn_dec_paste.clicked.connect(self.do_decrypt_message)
+        dec_row.addWidget(btn_dec_paste)
+
+        dec_layout.addLayout(dec_row)
+        layout.addWidget(dec_box)
+
+        # Encrypt & Send Outgoing Message Panel
         input_box = QHBoxLayout()
         self.txt_msg = QLineEdit()
-        self.txt_msg.setPlaceholderText("Type encrypted post-quantum message...")
+        self.txt_msg.setPlaceholderText("Type plaintext message to encrypt & send...")
         self.txt_msg.returnPressed.connect(self.do_send_message)
         input_box.addWidget(self.txt_msg)
 
@@ -703,6 +728,27 @@ class DerfMainWindow(QMainWindow):
             self.refresh_contacts()
             self.chat_display.clear()
             QMessageBox.information(self, "Deleted", "Contact and session keys shredded.")
+
+    def do_decrypt_message(self):
+        raw_in = self.txt_dec_in.text().strip()
+        if not raw_in:
+            raw_in = Derf.safe_paste().strip()
+            self.txt_dec_in.setText(raw_in)
+
+        if not raw_in or "DERF:V1:" not in raw_in:
+            QMessageBox.warning(self, "Invalid Packet", "Paste a valid DERF:V1: ciphertext packet first.")
+            return
+
+        try:
+            decrypted = Derf.decrypt_alien_stack(raw_in, self.idn, custom_session_loader=Derf.load_sim_bob_session_standalone)
+            if decrypted:
+                peer_lbl = self.selected_peer or "Peer"
+                self.chat_display.append(f"<font color='{COLOR_GREEN_ACTIVE}'><b>{peer_lbl}:</b></font> <font color='{COLOR_TEXT_MAIN}'>{decrypted}</font>")
+                self.txt_dec_in.clear()
+            else:
+                QMessageBox.critical(self, "Decryption Failed", "Could not decrypt message packet. Wrong key, stale message, or corrupted payload.")
+        except Exception as e:
+            QMessageBox.critical(self, "Decryption Error", str(e))
 
     def do_send_message(self):
         msg = self.txt_msg.text().strip()
