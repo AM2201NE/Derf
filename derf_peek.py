@@ -42,29 +42,28 @@ TEXT_MAIN = "#EEF0F8"        # Main text
 BORDER_COLOR = "#292C38"     # Subtle border
 # =============================================================
 
-def draw_rounded_rect(canvas, x1, y1, x2, y2, radius=12, **kwargs):
-    points = [
-        x1+radius, y1,
-        x1+radius, y1,
-        x2-radius, y1,
-        x2-radius, y1,
-        x2, y1,
-        x2, y1+radius,
-        x2, y1+radius,
-        x2, y2-radius,
-        x2, y2-radius,
-        x2, y2,
-        x2-radius, y2,
-        x2-radius, y2,
-        x1+radius, y2,
-        x1+radius, y2,
-        x1, y2,
-        x1, y2-radius,
-        x1, y2-radius,
-        x1, y1+radius,
-        x1, y1+radius,
-        x1, y1
-    ]
+import math
+
+def draw_apple_squircle(canvas, x1, y1, x2, y2, radius_pct=0.2237, smoothness=0.60, **kwargs):
+    w = x2 - x1
+    h = y2 - y1
+    n = 3.2 + (smoothness * 2.0)
+
+    points = []
+    steps = 64
+    for i in range(steps):
+        angle = (2 * math.pi * i) / steps
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+
+        sign_x = 1 if cos_a >= 0 else -1
+        sign_y = 1 if sin_a >= 0 else -1
+
+        px = (w / 2.0) * (abs(cos_a) ** (2.0 / n)) * sign_x + (x1 + w / 2.0)
+        py = (h / 2.0) * (abs(sin_a) ** (2.0 / n)) * sign_y + (y1 + h / 2.0)
+
+        points.extend([px, py])
+
     return canvas.create_polygon(points, smooth=True, **kwargs)
 
 def clean_ciphertext_input(text):
@@ -192,8 +191,8 @@ class PeekCard:
 
         # Redraw rounded glass card background
         self.canvas.delete("all")
-        draw_rounded_rect(self.canvas, 2, 2, req_w-2, req_h-2, radius=14,
-                          fill=BG_OBSIDIAN, outline=CYAN_PRIMARY, width=1.5)
+        draw_apple_squircle(self.canvas, 2, 2, req_w-2, req_h-2, radius_pct=0.2237, smoothness=0.60,
+                            fill=BG_OBSIDIAN, outline=CYAN_PRIMARY, width=1.5)
 
         # Embed text frame inside canvas
         self.canvas.create_window(req_w // 2, req_h // 2, window=self.text_frame, width=req_w-6, height=req_h-6)

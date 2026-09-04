@@ -75,6 +75,12 @@ def _data_dir():
 DATA_DIR = _data_dir()
 def P(n): return os.path.join(DATA_DIR, n)
 
+if os.path.exists(P("lc_fresh.json")):
+    try:
+        d = vload(P("lc_fresh.json"))
+        FRESH = float(d.get("fresh_sec", 420.0))
+    except Exception: pass
+
 # ================= ALIEN COMPRESSION STACK =================
 DICT_PATH = P("derf_elite_dict.zdict")
 ALIEN_COMPRESSION_ENABLED = False
@@ -1382,6 +1388,24 @@ class MainScreen(Screen):
         self.status_lbl.text = f"[*] Saved drop file: {fp}"
         self.show_popup("Saved", f"Packet drop saved to Desktop/Derf/lc_drop/{fn}")
 
+    def launch_dual_instance(self, *args):
+        import subprocess
+        try:
+            subprocess.Popen([sys.executable, sys.argv[0], "--profile=bob"])
+            self.show_popup("Sandbox Launched", "Secondary Derf instance (Bob) launched in isolated profile ~/desktop/Derf_Profile_bob!")
+        except Exception as e:
+            self.show_popup("Launch Error", repr(e))
+
+    def save_freshness_window(self, *args):
+        global FRESH
+        try:
+            val = float(self.fresh_input.text.strip())
+            FRESH = val
+            vsave(P("lc_fresh.json"), {"fresh_sec": FRESH})
+            self.show_popup("Freshness Saved", f"Freshness window updated to {FRESH} seconds!")
+        except Exception as e:
+            self.show_popup("Error", f"Invalid freshness number: {e}")
+
     def do_decrypt(self, *args):
         raw = self.dec_input.text.strip()
         if not raw:
@@ -1809,6 +1833,28 @@ class MainScreen(Screen):
             ("Uniform Packet Sizing", "Every ciphertext packet is padded to an exact fixed size (PACKET bytes), preventing packet length side-channel leaks."),
             ("Vault at Rest (PBKDF2-HMAC-SHA256)", "All identity keys, pending sessions, and contact states are stored on disk encrypted using 600,000 PBKDF2 iterations.")
         ]
+
+        # Dual-Instance Testing Sandbox Panel
+        c_dual = CardPanel(orientation='vertical', size_hint_y=None, height=110, padding=14, spacing=8)
+        lbl_d = Label(text="DUAL INSTANCE SANDBOX (TEST AS 2 DEVICES)", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_d.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        btn_dual = PrimaryButton(text="[ 👥 LAUNCH SECONDARY INSTANCE (BOB PROFILE) ]", size_hint_y=None, height=38, radius=8)
+        btn_dual.bind(on_release=self.launch_dual_instance)
+        c_dual.add_widget(lbl_d)
+        c_dual.add_widget(btn_dual)
+        grid.add_widget(c_dual)
+
+        # Customizable Freshness Window Sync Panel
+        c_fresh = CardPanel(orientation='vertical', size_hint_y=None, height=140, padding=14, spacing=8)
+        lbl_f = Label(text="CUSTOMIZE FRESHNESS WINDOW TIME (SECONDS)", font_size='13sp', bold=True, color=CYAN_PRIMARY, size_hint_y=None, height=22, halign='left', valign='middle')
+        lbl_f.bind(size=lambda inst, val: setattr(inst, 'text_size', (inst.width, None)))
+        self.fresh_input = TextInput(text=str(FRESH), multiline=False, background_color=(0.06, 0.07, 0.09, 1), foreground_color=CYAN_PRIMARY, size_hint_y=None, height=38, padding=(12, 8), font_size='12sp')
+        btn_f_save = PrimaryButton(text="[ SAVE & SYNC FRESHNESS WINDOW ]", size_hint_y=None, height=38, radius=8)
+        btn_f_save.bind(on_release=self.save_freshness_window)
+        c_fresh.add_widget(lbl_f)
+        c_fresh.add_widget(self.fresh_input)
+        c_fresh.add_widget(btn_f_save)
+        grid.add_widget(c_fresh)
 
         for title, desc in cards_data:
             c = CardPanel(orientation='vertical', size_hint_y=None, height=95, padding=14, spacing=4)
