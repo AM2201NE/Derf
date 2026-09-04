@@ -613,8 +613,12 @@ class DerfMainWindow(QMainWindow):
         self.contacts_list.clear()
         contacts = Derf.contacts_load()
         for name, key_bytes in contacts.items():
-            fp = Derf.id_fp(key_bytes)
-            item = QListWidgetItem(f"👤 {name}\n   FP: {fp[:12]}...")
+            sess_file = Derf.P(f"lc_session_{name}.json")
+            paired = os.path.exists(sess_file)
+            status = "PAIRED" if paired else "UNPAIRED"
+            fp = Derf.id_fp(key_bytes).hex()[:12]
+
+            item = QListWidgetItem(f"👤 {name} [{status}]\n   FP: {fp}...")
             item.setData(Qt.ItemDataRole.UserRole, name)
             self.contacts_list.addItem(item)
 
