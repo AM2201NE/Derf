@@ -595,7 +595,7 @@ class DerfMainWindow(QMainWindow):
         fresh_box = QHBoxLayout()
         self.spin_fresh = QSpinBox()
         self.spin_fresh.setRange(60, 86400)
-        self.spin_fresh.setValue(Derf.FRESH)
+        self.spin_fresh.setValue(int(Derf.FRESH))
         self.spin_fresh.setStyleSheet("background-color: #131418; color: #00F0FF; border: 1px solid #292C38; padding: 6px; border-radius: 6px;")
         fresh_box.addWidget(self.spin_fresh)
 
@@ -628,7 +628,7 @@ class DerfMainWindow(QMainWindow):
 
     def refresh_profile_keys(self):
         if self.idn and "pq_pk" in self.idn:
-            pk_str = Derf.id_bundle(self.idn)
+            pk_str = Derf.b64(Derf.id_bundle(self.idn))
             self.txt_my_pk.setPlainText(pk_str)
 
     def on_contact_selected(self, item):
