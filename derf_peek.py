@@ -1,5 +1,5 @@
 # ==========================================
-# DERF QUICK PEEK (Apple Squircle Glass Overlay)
+# DERF QUICK PEEK (Apple Squircle Glass Overlay - PyQt6)
 # ==========================================
 import os
 import sys
@@ -25,32 +25,31 @@ try:
 except Exception:
     keyboard = None
 
-try:
-    import tkinter as tk
-except Exception:
-    tk = None
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, QPushButton
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QPoint
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont, QCursor
 
 IS_WIN32 = (sys.platform == "win32")
 if IS_WIN32:
-    import win32gui
-    import win32con
+    try:
+        import win32gui
+        import win32con
+    except Exception:
+        win32gui = None
+        win32con = None
 
-BG_OBSIDIAN = "#0E0E10"      # Glass Obsidian Backdrop
-CYAN_PRIMARY = "#00F0FF"     # Electric Cyan Accent
-TEXT_MAIN = "#EEF0F8"        # Main text
-SCROLL_THUMB = "#00F0FF"     # Subtle 3px Scrollbar Pill
-SCROLL_TROUGH = "#181A22"    # Subtle scrollbar trough
+BG_OBSIDIAN = QColor(14, 14, 18, 245)      # Glass Obsidian Backdrop (translucent)
+CYAN_PRIMARY = QColor(0, 240, 255)         # Electric Cyan Accent
+TEXT_MAIN = QColor(238, 240, 248)          # Main text
 
-def generate_apple_squircle(x1, y1, x2, y2, radius_pct=0.2237, smoothness=0.60, points_count=128):
-    w = x2 - x1
-    h = y2 - y1
-    cx = (x1 + x2) / 2.0
-    cy = (y1 + y2) / 2.0
+def generate_apple_squircle_path(x, y, w, h, radius_pct=0.2237, smoothness=0.60, points_count=128):
+    cx = x + w / 2.0
+    cy = y + h / 2.0
     n = 3.2 + (smoothness * 2.0)
     half_w = w / 2.0
     half_h = h / 2.0
 
-    pts = []
+    path = QPainterPath()
     for i in range(points_count):
         angle = (2.0 * math.pi * i) / points_count
         cos_a = math.cos(angle)
@@ -59,8 +58,12 @@ def generate_apple_squircle(x1, y1, x2, y2, radius_pct=0.2237, smoothness=0.60, 
         sign_y = 1.0 if sin_a >= 0 else -1.0
         px = cx + half_w * (abs(cos_a) ** (2.0 / n)) * sign_x
         py = cy + half_h * (abs(sin_a) ** (2.0 / n)) * sign_y
-        pts.extend([px, py])
-    return pts
+        if i == 0:
+            path.moveTo(px, py)
+        else:
+            path.lineTo(px, py)
+    path.closeSubpath()
+    return path
 
 def clean_ciphertext_input(text):
     if not text: return ""
@@ -76,167 +79,165 @@ def clean_ciphertext_input(text):
     return text.strip()
 
 
-class PeekCard:
+class PeekSignalEmitter(QObject):
+    show_signal = pyqtSignal(str, int, int)
+    hide_signal = pyqtSignal()
+
+
+class PeekCardWidget(QWidget):
     def __init__(self):
-        self.root = None
-        self.canvas = None
-        self.text_widget = None
-        self.scroll_canvas = None
-        self.text_frame = None
-        self._timer_id = None
-        self._req_w = 320
-        self._req_h = 140
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-    def init_ui(self):
-        if not tk:
-            return
-        self.root = tk.Tk()
-        self.root.title("Derf Peek Glass")
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(14, 10, 14, 10)
 
-        self.root.overrideredirect(True)
-        self.root.attributes('-topmost', True)
+        # Header bar
+        self.hdr_layout = QHBoxLayout()
+        self.hdr_layout.setContentsMargins(0, 0, 0, 4)
 
-        TRANS_KEY = "#000001"
-        self.root.configure(bg=TRANS_KEY)
-        if IS_WIN32:
-            try:
-                self.root.wm_attributes('-transparentcolor', TRANS_KEY)
-            except Exception:
-                pass
+        self.lbl_title = QLabel("⚡ DERF PEEK GLASS")
+        self.lbl_title.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px; letter-spacing: 1px;")
+        self.hdr_layout.addWidget(self.lbl_title)
+        self.hdr_layout.addStretch()
 
-        if IS_WIN32:
-            try:
-                hwnd = win32gui.GetParent(self.root.winfo_id())
-                win32gui.SetClassLong(hwnd, win32con.GCL_STYLE,
-                                      win32gui.GetClassLong(hwnd, win32con.GCL_STYLE) | win32con.CS_DROPSHADOW)
-            except Exception:
-                pass
+        self.btn_close = QPushButton("×")
+        self.btn_close.setFixedSize(18, 18)
+        self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_close.setStyleSheet("QPushButton { color: #8E8E93; background: transparent; border: none; font-size: 15px; font-weight: bold; } QPushButton:hover { color: #00F0FF; }")
+        self.btn_close.clicked.connect(self.hide)
+        self.hdr_layout.addWidget(self.btn_close)
 
-        self.canvas = tk.Canvas(self.root, bg=TRANS_KEY, highlightthickness=0, bd=0)
-        self.canvas.pack(fill='both', expand=True)
+        self.layout.addLayout(self.hdr_layout)
 
-        self.text_frame = tk.Frame(self.canvas, bg=BG_OBSIDIAN, bd=0)
+        # Message content box
+        self.text_widget = QTextEdit()
+        self.text_widget.setReadOnly(True)
+        self.text_widget.setStyleSheet("""
+            QTextEdit {
+                background-color: transparent;
+                color: #00F0FF;
+                font-family: 'Segoe UI', 'SF Pro Text', sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+                border: none;
+                selection-background-color: #00F0FF;
+                selection-color: #0E0E10;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #181A22;
+                width: 4px;
+                margin: 0px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: #00F0FF;
+                min-height: 16px;
+                border-radius: 2px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        self.layout.addWidget(self.text_widget)
 
-        self.scroll_canvas = tk.Canvas(self.text_frame, bg=BG_OBSIDIAN, width=6, highlightthickness=0, bd=0)
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide)
 
-        self.text_widget = tk.Text(self.text_frame, fg=CYAN_PRIMARY, bg=BG_OBSIDIAN,
-                                   font=("Segoe UI", 11, "bold"), wrap='word', bd=0, highlightthickness=0,
-                                   padx=14, pady=12, insertbackground=CYAN_PRIMARY)
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        def _on_text_scroll(first, last):
-            self._update_scroll_pill(float(first), float(last))
+        # Draw Apple Squircle path
+        path = generate_apple_squircle_path(2, 2, self.width() - 4, self.height() - 4, radius_pct=0.2237, smoothness=0.60)
 
-        self.text_widget.config(yscrollcommand=_on_text_scroll)
+        # Obsidian Translucent Fill
+        painter.fillPath(path, BG_OBSIDIAN)
 
-        self.scroll_canvas.pack(side='right', fill='y', padx=(0, 4), pady=10)
-        self.text_widget.pack(side='left', fill='both', expand=True)
+        # Electric Cyan Subtle Glowing Border
+        pen = QPen(CYAN_PRIMARY)
+        pen.setWidthF(1.5)
+        painter.setPen(pen)
+        painter.drawPath(path)
 
-        self.root.bind('<Escape>', lambda e: self.hide())
-        self.root.bind('<FocusOut>', lambda e: self.hide())
-        self.canvas.bind('<Button-1>', lambda e: self.hide())
-        self.text_widget.bind('<Button-1>', lambda e: self.hide())
+    def show_text(self, text, x, y):
+        self.text_widget.setPlainText(text)
 
-        def _on_mousewheel(event):
-            if IS_WIN32:
-                self.text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            else:
-                if event.num == 4:
-                    self.text_widget.yview_scroll(-1, "units")
-                elif event.num == 5:
-                    self.text_widget.yview_scroll(1, "units")
-            self._update_scroll_pill()
+        screen = QApplication.primaryScreen().geometry()
+        screen_w = screen.width()
+        screen_h = screen.height()
 
-        self.text_widget.bind("<MouseWheel>", _on_mousewheel)
-        self.text_widget.bind("<Button-4>", _on_mousewheel)
-        self.text_widget.bind("<Button-5>", _on_mousewheel)
-
-        self.root.withdraw()
-
-    def _update_scroll_pill(self, first=None, last=None):
-        if not self.scroll_canvas: return
-        if first is None or last is None:
-            try:
-                first, last = self.text_widget.yview()
-            except Exception:
-                return
-
-        self.scroll_canvas.delete("all")
-        if first <= 0.0 and last >= 1.0:
-            return
-
-        c_h = self.scroll_canvas.winfo_height()
-        if c_h <= 10: c_h = 100
-
-        y1 = first * c_h
-        y2 = max(last * c_h, y1 + 16)
-
-        self.scroll_canvas.create_rectangle(1, y1, 4, y2, fill=CYAN_PRIMARY, outline="", width=0)
-
-    def run(self):
-        self.init_ui()
-        if self.root:
-            self.root.mainloop()
-
-    def show(self, text, x, y):
-        if not self.root:
-            print(f"[DERF PEEK] {text}")
-            return
-        self.root.after(0, lambda: self._show_impl(text, x, y))
-
-    def _show_impl(self, text, x, y):
-        self.text_widget.config(state="normal")
-        self.text_widget.delete("1.0", "end")
-        self.text_widget.insert("1.0", text)
-        self.text_widget.config(state="disabled")
-
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-
-        max_w = min(500, int(screen_w * 0.45))
-        max_h = min(360, int(screen_h * 0.45))
-        min_w = 260
-        min_h = 90
+        max_w = min(520, int(screen_w * 0.45))
+        max_h = min(380, int(screen_h * 0.45))
+        min_w = 280
+        min_h = 100
 
         char_len = len(text)
-        est_lines = max(1, char_len // 30 + text.count('\n'))
+        est_lines = max(1, char_len // 32 + text.count('\n'))
 
         req_w = min(max(char_len * 9 + 48, min_w), max_w)
-        req_h = min(max(est_lines * 22 + 28, min_h), max_h)
+        req_h = min(max(est_lines * 22 + 48, min_h), max_h)
 
-        self._req_w, self._req_h = req_w, req_h
-        self.root.geometry(f"{req_w}x{req_h}")
-
-        self.canvas.delete("all")
-        sq_points = generate_apple_squircle(2, 2, req_w-2, req_h-2, radius_pct=0.2237, smoothness=0.60)
-        self.canvas.create_polygon(sq_points, smooth=True, fill=BG_OBSIDIAN, outline=CYAN_PRIMARY, width=1.5)
-
-        self.canvas.create_window(req_w // 2, req_h // 2, window=self.text_frame, width=req_w-8, height=req_h-8)
+        self.resize(req_w, req_h)
 
         final_x = min(max(x + 15, 10), screen_w - req_w - 20)
         final_y = min(max(y + 15, 10), screen_h - req_h - 20)
 
-        self.root.geometry(f"+{final_x}+{final_y}")
-        self.root.deiconify()
+        self.move(final_x, final_y)
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
-        if IS_WIN32:
-            try:
-                hwnd = win32gui.GetParent(self.root.winfo_id())
-                win32gui.SetWindowPos(
-                    hwnd, win32con.HWND_TOPMOST,
-                    final_x, final_y, req_w, req_h,
-                    win32con.SWP_SHOWWINDOW
-                )
-            except Exception as e:
-                print(f"SetWindowPos error: {e}")
+        # Reset 10-second auto hide timer
+        self.timer.start(10000)
 
-        if self._timer_id:
-            try: self.root.after_cancel(self._timer_id)
-            except Exception: pass
-        self._timer_id = self.root.after(10000, self.hide)
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.hide()
+        else:
+            super().keyPressEvent(event)
+
+
+class PeekCard:
+    def __init__(self):
+        self.app = None
+        self.widget = None
+        self.emitter = PeekSignalEmitter()
+        self.emitter.show_signal.connect(self._on_show)
+        self.emitter.hide_signal.connect(self._on_hide)
+
+    def init_ui(self):
+        if not QApplication.instance():
+            self.app = QApplication(sys.argv)
+        else:
+            self.app = QApplication.instance()
+
+        if not self.widget:
+            self.widget = PeekCardWidget()
+
+    def _on_show(self, text, x, y):
+        if not self.widget:
+            self.widget = PeekCardWidget()
+        self.widget.show_text(text, x, y)
+
+    def _on_hide(self):
+        if self.widget:
+            self.widget.hide()
+
+    def show(self, text, x, y):
+        self.emitter.show_signal.emit(text, int(x), int(y))
 
     def hide(self):
-        if self.root:
-            self.root.withdraw()
+        self.emitter.hide_signal.emit()
+
+    def run(self):
+        self.init_ui()
+        if self.app and not QApplication.instance():
+            self.app.exec()
+
 
 def decrypt_payload(raw_block):
     try:
@@ -247,8 +248,10 @@ def decrypt_payload(raw_block):
         print(f"[!] Decryption error: {e}")
         return None
 
+
 if __name__ == "__main__":
     peek_card = PeekCard()
+    peek_card.init_ui()
 
     def trigger_peek():
         try:
@@ -261,11 +264,8 @@ if __name__ == "__main__":
             if "DERF:V1:" in selected_text:
                 decrypted = decrypt_payload(selected_text)
                 if decrypted:
-                    x, y = 100, 100
-                    if IS_WIN32:
-                        try:
-                            x, y = win32gui.GetCursorPos()
-                        except Exception: pass
+                    pos = QCursor.pos()
+                    x, y = pos.x(), pos.y()
                     peek_card.show(decrypted, x, y)
                 else:
                     print("[!] Could not decrypt. Wrong session, stale message, or corrupted data.")
@@ -275,7 +275,7 @@ if __name__ == "__main__":
             print(f"[!] Peek error: {e}")
 
     print("=========================================")
-    print("  DERF QUICK PEEK GLASS CARD ACTIVE")
+    print("  DERF QUICK PEEK GLASS CARD ACTIVE (PyQt6)")
     print("  Highlight text in any app and press:")
     print("  [ Alt + Shift + Q ] to decrypt")
     print("=========================================")
@@ -286,4 +286,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[!] Hotkey error: {e}")
 
-    peek_card.run()
+    if peek_card.app:
+        peek_card.app.exec()

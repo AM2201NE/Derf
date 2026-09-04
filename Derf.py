@@ -437,8 +437,19 @@ def unpad(p):
     return p[4:4+l]
 
 def clean_b64(r):
-    return "".join(l.strip() for l in r.splitlines() if l.strip() and not l.strip().startswith("-----")).replace("-", "+").replace("_", "/")
-
+    if not r: return ""
+    import html, re
+    r = html.unescape(str(r))
+    r = re.sub(r'<[^>]+>', '', r)
+    for c in ['-', '_', ' ', '\n', '\r', '\t']:
+        r = r.replace(c, '+' if c == '-' else ('/' if c == '_' else ''))
+    m = re.search(r'([A-Za-z0-9+/=]{40,})', r)
+    if m:
+        r = m.group(1)
+    missing = len(r) % 4
+    if missing:
+        r += '=' * (4 - missing)
+    return r
 def valid_pub(b): return isinstance(b, (bytes, bytearray)) and len(b) == EK
 
 def parse_pubkey(t):
