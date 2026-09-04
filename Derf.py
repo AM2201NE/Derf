@@ -844,7 +844,64 @@ if __name__ == '__main__' and IS_SELFTEST:
     run_selftest()
     sys.exit(0)
 
-# =========================================================
+# ================= Native Clipboard & Hotkey Key Injections =================
+IS_WINDOWS = (sys.platform == "win32")
+if IS_WINDOWS:
+    import ctypes
+    user32 = ctypes.windll.user32
+    VK_SHIFT = 0x10
+    VK_CONTROL = 0x11
+    VK_MENU = 0x12  # Alt
+    VK_LALT = 0xA4
+    VK_RALT = 0xA5
+    VK_LSHIFT = 0xA0
+    VK_RSHIFT = 0xA1
+    KEYEVENTF_KEYUP = 0x0002
+
+    def release_modifiers_native():
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RALT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+    def trigger_copy_native():
+        release_modifiers_native()
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, 0, 0)
+        user32.keybd_event(ord('C'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+    def trigger_paste_native():
+        release_modifiers_native()
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(ord('V'), 0, 0, 0)
+        user32.keybd_event(ord('V'), 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+else:
+    def release_modifiers_native():
+        if kb_controller:
+            for k in [Key.alt, Key.alt_l, Key.alt_r, Key.shift, Key.shift_l, Key.shift_r, Key.ctrl, Key.ctrl_l, Key.ctrl_r]:
+                try: kb_controller.release(k)
+                except Exception: pass
+
+    def trigger_copy_native():
+        release_modifiers_native()
+        if kb_controller:
+            with kb_controller.pressed(Key.ctrl):
+                kb_controller.press('c')
+                kb_controller.release('c')
+
+    def trigger_paste_native():
+        release_modifiers_native()
+        if kb_controller:
+            with kb_controller.pressed(Key.ctrl):
+                kb_controller.press('v')
+                kb_controller.release('v')
+
+_bg_hotkey_lock = threading.Lock()
 _CLIPBOARD_TEXT = ""
 
 def safe_copy(text):
