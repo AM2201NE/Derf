@@ -1051,8 +1051,16 @@ def main():
         print(f"FATAL: Post-Quantum backend failed to initialize: {e}")
         sys.exit(1)
 
-    import derf_qt_ui
-    derf_qt_ui.launch_pyqt_app(profile_name)
+    is_android = hasattr(sys, 'getandroidapilevel') or 'ANDROID_ARGUMENT' in os.environ or 'PYTHON_SERVICE_ARGUMENT' in os.environ
+    if not is_android:
+        try:
+            import derf_qt_ui
+            derf_qt_ui.launch_pyqt_app(profile_name)
+            return
+        except ImportError:
+            pass
+    import derf_mobile_ui
+    derf_mobile_ui.launch_mobile_app(profile_name)
 
 if __name__ == "__main__":
     main()
