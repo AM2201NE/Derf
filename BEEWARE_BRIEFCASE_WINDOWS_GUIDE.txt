@@ -3,8 +3,8 @@ BEEWARE BRIEFCASE (NATIVE WINDOWS TO ANDROID APK BUILD GUIDE)
 100% Pure Windows — No Linux, WSL, Ubuntu, or VirtualBox Required
 ================================================================================
 
-This guide walks you through packaging Derf PQ Messenger into an Android APK directly
-on your Windows PC using BeeWare Briefcase.
+This guide walks you through packaging and real-time live debugging of Derf PQ Messenger
+on Android directly from your Windows PC using BeeWare Briefcase.
 
 --------------------------------------------------------------------------------
 STEP 1: PREREQUISITES ON WINDOWS
@@ -14,6 +14,8 @@ STEP 1: PREREQUISITES ON WINDOWS
 3. Android Studio for Windows (Download from developer.android.com).
    • Open Android Studio -> Tools -> SDK Manager.
    • Ensure "Android SDK Platform-Tools" and "Android SDK Build-Tools" are installed.
+   • Add `platform-tools` (containing `adb.exe`) to your Windows PATH environment variable
+     (typically `C:\Users\<YourUsername>\AppData\Local\Android\Sdk\platform-tools`).
 
 --------------------------------------------------------------------------------
 STEP 2: INSTALL BEEWARE BRIEFCASE
@@ -33,7 +35,7 @@ Run briefcase create:
 
     briefcase create android
 
-(Or `briefcase update android -r` if updating dependencies).
+(Or `briefcase update android -r` if updating dependencies or `pyproject.toml`).
 
 --------------------------------------------------------------------------------
 STEP 4: BUILD & LOCATE YOUR STANDALONE .APK FILE
@@ -47,7 +49,7 @@ Run the build command:
     build\derf\android\gradle\app\build\outputs\apk\debug\app-debug.apk
 
 --------------------------------------------------------------------------------
-STEP 5: COPY THE .APK TO YOUR DESKTOP / DIST FOLDER
+STEP 5: COPY THE .APK TO YOUR DESKTOP / DIST FOLDER (FOR DISTRIBUTION)
 --------------------------------------------------------------------------------
 Run this PowerShell command to copy the `.apk` directly to your `dist` folder:
 
@@ -55,18 +57,56 @@ Run this PowerShell command to copy the `.apk` directly to your `dist` folder:
     Copy-Item "build\derf\android\gradle\app\build\outputs\apk\debug\app-debug.apk" "dist\Derf_PQ_Messenger.apk" -Force
 
 • Your installable `Derf_PQ_Messenger.apk` file is now ready in `dist\Derf_PQ_Messenger.apk`!
-  You can transfer this `.apk` file straight to your Android phone and install it.
 
 --------------------------------------------------------------------------------
-STEP 6: RUN / TEST ON EMULATOR OR CONNECTED PHONE (OPTIONAL)
+STEP 6: REAL-TIME DIRECT DEBUG TRIAL ON ANDROID (WITHOUT MOVING APK FILES)
 --------------------------------------------------------------------------------
-To run the app directly on a connected Android phone or Android Studio Emulator:
+To test and debug the app directly on a physical Android phone or Emulator in real time
+without needing to manually copy or install `.apk` files:
+
+1. Enable Developer Options & USB Debugging on your Android Phone:
+   • Go to Settings -> About Phone -> tap "Build Number" 7 times.
+   • Go to System -> Developer Options -> turn ON "USB Debugging".
+   • Connect your phone to your PC via USB cable and tap "Allow USB Debugging" on phone.
+
+2. Verify connected Android device in PowerShell:
+
+    adb devices
+
+   (You should see your phone listed, e.g., `1234567890ABCDEF  device`).
+
+3. Directly launch and run the app on your connected phone in real time:
 
     briefcase run android
 
+   Briefcase will automatically compile, push, install, launch the app on your phone,
+   and stream live terminal logs directly to your Windows PowerShell prompt.
+
+4. Quick Code Iteration / Fast Refresh (No full recompile needed):
+   If you edit any Python code (e.g. `Derf.py`, `derf_qt_ui.py`) and want to instantly
+   update and test on the phone without re-building Gradle:
+
+    briefcase run android -u
+
+   The `-u` (update) flag syncs Python code changes directly to the app bundle on the phone
+   and restarts the app immediately.
+
+--------------------------------------------------------------------------------
+STEP 7: REAL-TIME CRASH & LOG MONITORING (ADB LOGCAT)
+--------------------------------------------------------------------------------
+If the app closes or crashes on Android launch, capture live Python stack traces instantly:
+
+Open a separate PowerShell window and run:
+
+    adb logcat *:S python:V stdio:V AndroidRuntime:E
+
+This streams live stdout, stderr, Python tracebacks, and Android crash exceptions directly
+to your screen in real time so you can inspect and fix any issues instantly!
+
 ================================================================================
-SUMMARY:
-• `briefcase build android` compiles the `.apk` under:
-  `build\derf\android\gradle\app\build\outputs\apk\debug\app-debug.apk`
-• Run the `Copy-Item` PowerShell command above to place it directly in `dist\`.
+SUMMARY OF DEBUG COMMANDS:
+• Direct live trial on phone:     `briefcase run android`
+• Sync code & re-launch on phone: `briefcase run android -u`
+• Live log & exception stream:     `adb logcat *:S python:V stdio:V AndroidRuntime:E`
+• Build standalone APK file:      `briefcase build android`
 ================================================================================
