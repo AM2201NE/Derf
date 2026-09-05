@@ -26,7 +26,6 @@ sources = [
 ]
 
 requires = [
-    "PyQt6>=6.5.0",
     "cryptography>=41.0.0",
     "kyber-py>=0.1.0",
     "plyer>=2.1.0",
@@ -37,6 +36,7 @@ requires = [
 
 [tool.briefcase.app.derf.windows]
 requires = [
+    "PyQt6>=6.5.0",
     "pynput>=1.7.6",
     "pystray>=0.19.5",
     "keyboard>=0.13.5",
@@ -45,7 +45,6 @@ requires = [
 
 [tool.briefcase.app.derf.android]
 requires = [
-    "PyQt6>=6.5.0",
     "cryptography>=41.0.0",
     "kyber-py>=0.1.0",
     "plyer>=2.1.0",

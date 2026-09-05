@@ -23,17 +23,17 @@ Open PowerShell or Command Prompt on Windows as Administrator and run:
     pip install briefcase
 
 --------------------------------------------------------------------------------
-STEP 3: CREATE THE ANDROID BUILD PROJECT
+STEP 3: RE-CREATE / UPDATE THE ANDROID BUILD PROJECT
 --------------------------------------------------------------------------------
 In PowerShell, navigate to the Derf directory:
 
     cd C:\Users\GG\Desktop\Derf
 
-Run the briefcase create command:
+Run the briefcase create command with `-r` (refresh dependencies):
 
-    briefcase create android
+    briefcase create android -r
 
-• Briefcase will read `pyproject.toml`, download the Android SDK tools automatically if needed,
+• Briefcase will read `pyproject.toml`, update Chaquopy Android dependencies,
   and generate an Android Gradle project shell under `build\derf\android\gradle`.
 
 --------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ Run the build command:
 
     briefcase build android
 
-• Briefcase will compile all Python dependencies (cryptography, kyber-py, PyQt6)
+• Briefcase will compile all Chaquopy Android dependencies (cryptography, kyber-py, zstandard)
   and build the debug APK using Gradle on Windows.
 
 --------------------------------------------------------------------------------
@@ -65,7 +65,9 @@ To run the app directly on a connected Android phone or Android Studio Emulator:
 
 ================================================================================
 TROUBLESHOOTING TIPS ON WINDOWS:
-• If Java error occurs: Set JAVA_HOME environment variable in Windows to JDK 17 path
-  (e.g., `set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9.9-hotspot`).
-• If Gradle build fails on long paths: Move the folder closer to C:\ (e.g. `C:\Derf`).
+• If Java warning occurs: Set JAVA_HOME environment variable in Windows to JDK 17 path:
+  `set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9.9-hotspot`
+• Note on Chaquopy Android Wheels: Desktop `PyQt6` binaries are specified under
+  `[tool.briefcase.app.derf.windows]` in `pyproject.toml` so Android Chaquopy
+  only downloads cross-platform Python wheels (cryptography, kyber-py, zstandard, etc.).
 ================================================================================
