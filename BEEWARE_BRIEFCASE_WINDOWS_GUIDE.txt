@@ -1,0 +1,73 @@
+================================================================================
+BEEWARE BRIEFCASE (NATIVE WINDOWS TO ANDROID APK BUILD GUIDE)
+100% Pure Windows — No Linux, WSL, Ubuntu, or VirtualBox Required
+================================================================================
+
+This guide walks you through packaging Derf PQ Messenger into an Android APK directly
+on your Windows PC using BeeWare Briefcase.
+
+--------------------------------------------------------------------------------
+STEP 1: PREREQUISITES ON WINDOWS
+--------------------------------------------------------------------------------
+1. Python 3.10+ (Installed on Windows and added to PATH).
+2. Java JDK 17 (Eclipse Temurin or Oracle JDK 17 installer for Windows).
+3. Android Studio for Windows (Download from developer.android.com).
+   • Open Android Studio -> Tools -> SDK Manager.
+   • Ensure "Android SDK Platform-Tools" and "Android SDK Build-Tools" are installed.
+
+--------------------------------------------------------------------------------
+STEP 2: INSTALL BEEWARE BRIEFCASE
+--------------------------------------------------------------------------------
+Open PowerShell or Command Prompt on Windows as Administrator and run:
+
+    pip install briefcase
+
+--------------------------------------------------------------------------------
+STEP 3: RE-CREATE / UPDATE THE ANDROID BUILD PROJECT
+--------------------------------------------------------------------------------
+In PowerShell, navigate to the Derf directory:
+
+    cd C:\Users\GG\Desktop\Derf
+
+Run the briefcase create command with `-r` (refresh dependencies):
+
+    briefcase create android -r
+
+• Briefcase will read `pyproject.toml`, update Chaquopy Android dependencies,
+  and generate an Android Gradle project shell under `build\derf\android\gradle`.
+
+--------------------------------------------------------------------------------
+STEP 4: COMPILE THE ANDROID APK
+--------------------------------------------------------------------------------
+Run the build command:
+
+    briefcase build android
+
+• Briefcase will compile all Chaquopy Android dependencies (cryptography, kyber-py, zstandard)
+  and build the debug APK using Gradle on Windows.
+
+--------------------------------------------------------------------------------
+STEP 5: PACKAGE THE FINAL APK
+--------------------------------------------------------------------------------
+To generate the final standalone `.apk` file:
+
+    briefcase package android
+
+• The generated `.apk` file will be saved in:
+  `dist\Derf PQ Messenger-1.0.0.apk`
+
+--------------------------------------------------------------------------------
+STEP 6: RUN / TEST ON EMULATOR OR CONNECTED PHONE (OPTIONAL)
+--------------------------------------------------------------------------------
+To run the app directly on a connected Android phone or Android Studio Emulator:
+
+    briefcase run android
+
+================================================================================
+TROUBLESHOOTING TIPS ON WINDOWS:
+• If Java warning occurs: Set JAVA_HOME environment variable in Windows to JDK 17 path:
+  `set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9.9-hotspot`
+• Note on Chaquopy Android Wheels: Desktop `PyQt6` binaries are specified under
+  `[tool.briefcase.app.derf.windows]` in `pyproject.toml` so Android Chaquopy
+  only downloads cross-platform Python wheels (cryptography, kyber-py, zstandard, etc.).
+================================================================================
