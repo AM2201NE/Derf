@@ -23,40 +23,39 @@ Open PowerShell or Command Prompt on Windows as Administrator and run:
     pip install briefcase
 
 --------------------------------------------------------------------------------
-STEP 3: REFRESH APP DEPENDENCIES & GRADLE CONFIG
+STEP 3: CREATE / REFRESH THE ANDROID BUILD PROJECT
 --------------------------------------------------------------------------------
 In PowerShell, navigate to the Derf directory:
 
     cd C:\Users\GG\Desktop\Derf
 
-To update dependencies in the existing Android build:
+Run briefcase create:
 
-    briefcase update android -r
-
-Or to perform a clean, fresh recreation of the Android project:
-
-    Remove-Item -Recurse -Force build
     briefcase create android
 
+(Or `briefcase update android -r` if updating dependencies).
+
 --------------------------------------------------------------------------------
-STEP 4: COMPILE THE ANDROID APK
+STEP 4: BUILD & LOCATE YOUR STANDALONE .APK FILE
 --------------------------------------------------------------------------------
 Run the build command:
 
     briefcase build android
 
-• Briefcase will compile all Chaquopy Android dependencies (cryptography, kyber-py, zstandard)
-  and build the debug APK using Gradle on Windows.
+• Gradle will compile the Android app and generate the installable `.apk` file at:
+
+    build\derf\android\gradle\app\build\outputs\apk\debug\app-debug.apk
 
 --------------------------------------------------------------------------------
-STEP 5: PACKAGE THE FINAL APK
+STEP 5: COPY THE .APK TO YOUR DESKTOP / DIST FOLDER
 --------------------------------------------------------------------------------
-To generate the final standalone `.apk` file:
+Run this PowerShell command to copy the `.apk` directly to your `dist` folder:
 
-    briefcase package android
+    if (!(Test-Path dist)) { New-Item -ItemType Directory -Path dist }
+    Copy-Item "build\derf\android\gradle\app\build\outputs\apk\debug\app-debug.apk" "dist\Derf_PQ_Messenger.apk" -Force
 
-• The generated `.apk` file will be saved in:
-  `dist\Derf PQ Messenger-1.0.0.apk`
+• Your installable `Derf_PQ_Messenger.apk` file is now ready in `dist\Derf_PQ_Messenger.apk`!
+  You can transfer this `.apk` file straight to your Android phone and install it.
 
 --------------------------------------------------------------------------------
 STEP 6: RUN / TEST ON EMULATOR OR CONNECTED PHONE (OPTIONAL)
@@ -66,8 +65,8 @@ To run the app directly on a connected Android phone or Android Studio Emulator:
     briefcase run android
 
 ================================================================================
-TROUBLESHOOTING TIPS ON WINDOWS:
-• If Java warning occurs: Set JAVA_HOME environment variable in Windows to JDK 17 path:
-  `set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9.9-hotspot`
-• If Chaquopy error persists: Run `Remove-Item -Recurse -Force build` then `briefcase create android`.
+SUMMARY:
+• `briefcase build android` compiles the `.apk` under:
+  `build\derf\android\gradle\app\build\outputs\apk\debug\app-debug.apk`
+• Run the `Copy-Item` PowerShell command above to place it directly in `dist\`.
 ================================================================================
