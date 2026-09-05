@@ -922,11 +922,11 @@ def start_integrated_background_service(app_ref):
     """Integrated Desktop & Android Background Service (Hotkeys + Quick Peek Glass Overlay)."""
     peek_card_inst = None
     try:
-        import derf_peek
+        # import derf_peek
         if hasattr(app_ref, 'peek_card_inst') and app_ref.peek_card_inst:
             peek_card_inst = app_ref.peek_card_inst
         else:
-            peek_card_inst = derf_peek.PeekCard()
+            peek_card_inst = None
         print("[*] Quick Peek Glass Card Overlay active in background!")
     except Exception as e:
         print(f"Peek Overlay init status: {repr(e)}")
@@ -979,7 +979,7 @@ def start_integrated_background_service(app_ref):
                 if decrypted:
                     x, y = 200, 200
                     try:
-                        from PyQt6.QtGui import QCursor
+                        # from PyQt6.QtGui import QCursor
                         pos = QCursor.pos()
                         x, y = pos.x(), pos.y()
                     except Exception:
@@ -1051,13 +1051,15 @@ def main():
         print(f"FATAL: Post-Quantum backend failed to initialize: {e}")
         sys.exit(1)
 
-    is_android = hasattr(sys, 'getandroidapilevel') or 'ANDROID_ARGUMENT' in os.environ or 'PYTHON_SERVICE_ARGUMENT' in os.environ
+    is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
+                  hasattr(sys, 'getandroidapilevel') or sys.platform == 'android' or
+                  'ANDROID_ARGUMENT' in os.environ or 'PYTHON_SERVICE_ARGUMENT' in os.environ)
     if not is_android:
         try:
             import derf_qt_ui
             derf_qt_ui.launch_pyqt_app(profile_name)
             return
-        except ImportError:
+        except (ImportError, ModuleNotFoundError):
             pass
     import derf_mobile_ui
     derf_mobile_ui.launch_mobile_app(profile_name)

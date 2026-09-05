@@ -9,6 +9,21 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from Derf import _single, _load_pq
 import Derf
 
+def is_android_device():
+    """Fail-proof detection for Android platform (Chaquopy / BeeWare / Kivy)."""
+    if 'ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or 'ANDROID_ARGUMENT' in os.environ or 'PYTHON_SERVICE_ARGUMENT' in os.environ:
+        return True
+    if hasattr(sys, 'getandroidapilevel') or sys.platform == 'android':
+        return True
+    if 'CHAQUOPY' in os.environ or 'org.beeware' in os.environ.get('PYTHONHOME', ''):
+        return True
+    try:
+        import java.lang
+        return True
+    except ImportError:
+        pass
+    return False
+
 def main():
     profile_name = "default"
     for arg in sys.argv[1:]:
@@ -16,7 +31,7 @@ def main():
             profile_name = arg.split("=", 1)[1]
 
     if not _single(profile_name):
-        print("⚠️ Another instance of Derf is already running.")
+        print(f"⚠️ Another instance of Derf ({profile_name}) is already running.")
         sys.exit(1)
 
     try:
@@ -25,18 +40,16 @@ def main():
         print(f"FATAL: Post-Quantum backend failed to initialize: {e}")
         sys.exit(1)
 
-    # Detect Android platform or PyQt6 availability
-    is_android = hasattr(sys, 'getandroidapilevel') or 'ANDROID_ARGUMENT' in os.environ or 'PYTHON_SERVICE_ARGUMENT' in os.environ
-
-    if not is_android:
+    # Check platform
+    if not is_android_device():
         try:
             from derf_qt_ui import launch_pyqt_app
             launch_pyqt_app(profile_name)
             return
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError) as e:
             print(f"PyQt6 not available ({e}), falling back to Mobile UI...")
 
-    # Fallback / Native Android UI
+    # Native Android / Mobile UI
     from derf_mobile_ui import launch_mobile_app
     launch_mobile_app(profile_name)
 
