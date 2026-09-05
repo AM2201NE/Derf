@@ -16,6 +16,7 @@ description = "Post-Quantum + Forward-Secret Deniable Two-Box Messenger"
 long_description = "Derf uses NIST FIPS 203 ML-KEM-768 post-quantum key exchange, Double Ratchet forward secrecy, and Alien Stack compression."
 icon = "derf"
 sources = [
+    "derf",
     "Derf.py",
     "derf_qt_ui.py",
     "derf_peek.py",
