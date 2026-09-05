@@ -30,7 +30,7 @@ class DerfMobileApp(toga.App):
         self.active_peer_alias = None
 
     def startup(self):
-        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10, background_color=COLOR_OBSIDIAN))
+        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=12, background_color=COLOR_OBSIDIAN))
         self.show_vault_screen()
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self.main_box
@@ -41,24 +41,24 @@ class DerfMobileApp(toga.App):
 
         title_lbl = toga.Label(
             "🔒 DERF PQ MESSENGER",
-            style=Pack(padding_bottom=15, font_weight=BOLD, text_align=CENTER, color=COLOR_CYAN)
+            style=Pack(margin_bottom=15, font_weight=BOLD, text_align=CENTER, color=COLOR_CYAN)
         )
         subtitle_lbl = toga.Label(
             f"Vault Profile: {self.profile_name}",
-            style=Pack(padding_bottom=20, text_align=CENTER, color=COLOR_MUTED)
+            style=Pack(margin_bottom=20, text_align=CENTER, color=COLOR_MUTED)
         )
 
-        pass_lbl = toga.Label("Master Vault Password:", style=Pack(padding_bottom=5, color=COLOR_TEXT))
-        self.pass_input = toga.PasswordInput(style=Pack(padding_bottom=15))
+        pass_lbl = toga.Label("Master Vault Password:", style=Pack(margin_bottom=5, color=COLOR_TEXT))
+        self.pass_input = toga.PasswordInput(style=Pack(margin_bottom=15))
 
-        btn_box = toga.Box(style=Pack(direction=ROW, padding_top=10))
-        unlock_btn = toga.Button("UNLOCK VAULT", on_press=self.on_unlock_vault, style=Pack(flex=1, padding_right=5))
-        create_btn = toga.Button("CREATE NEW", on_press=self.on_create_vault, style=Pack(flex=1, padding_left=5))
+        btn_box = toga.Box(style=Pack(direction=ROW, margin_top=10))
+        unlock_btn = toga.Button("UNLOCK VAULT", on_press=self.on_unlock_vault, style=Pack(flex=1, margin_right=5))
+        create_btn = toga.Button("CREATE NEW", on_press=self.on_create_vault, style=Pack(flex=1, margin_left=5))
 
         btn_box.add(unlock_btn)
         btn_box.add(create_btn)
 
-        self.status_lbl = toga.Label("", style=Pack(padding_top=15, text_align=CENTER, color=COLOR_WARNING))
+        self.status_lbl = toga.Label("", style=Pack(margin_top=15, text_align=CENTER, color=COLOR_WARNING))
 
         self.main_box.add(title_lbl)
         self.main_box.add(subtitle_lbl)
@@ -75,17 +75,19 @@ class DerfMobileApp(toga.App):
         if not os.path.exists(vault_path):
             idn = Derf.make_identity()
             c = {}
-            Derf.vsave(vault_path, (idn, c, key))
+            Derf.vsave(vault_path, {"idn": idn, "contacts": c, "key": key})
             self.idn_data = idn
             self.contacts = c
             return True
 
         res = Derf.vload(vault_path)
-        if res is None:
+        if not isinstance(res, dict):
             return False
 
         try:
-            stored_idn, stored_contacts, stored_key = res
+            stored_idn = res.get("idn")
+            stored_contacts = res.get("contacts", {})
+            stored_key = res.get("key")
             if stored_key != key:
                 return False
             self.idn_data = stored_idn
@@ -124,41 +126,41 @@ class DerfMobileApp(toga.App):
         self.main_box.clear()
 
         # Header
-        header_box = toga.Box(style=Pack(direction=ROW, padding_bottom=10))
+        header_box = toga.Box(style=Pack(direction=ROW, margin_bottom=10))
         title = toga.Label("🔐 DERF PQ (Mobile)", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
         lock_btn = toga.Button("🔒 LOCK", on_press=lambda w: self.show_vault_screen(), style=Pack(width=70))
         header_box.add(title)
         header_box.add(lock_btn)
 
         # Peer selection / Active contact
-        peer_box = toga.Box(style=Pack(direction=ROW, padding_bottom=10))
+        peer_box = toga.Box(style=Pack(direction=ROW, margin_bottom=10))
         self.peer_lbl = toga.Label("Active Contact: [None]", style=Pack(color=COLOR_SUCCESS, flex=1))
         peer_box.add(self.peer_lbl)
 
         # Chat Log Box
         self.chat_multiline = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(flex=1, padding_bottom=10, background_color=COLOR_CARD, color=COLOR_TEXT)
+            style=Pack(flex=1, margin_bottom=10, background_color=COLOR_CARD, color=COLOR_TEXT)
         )
 
         # Decryption Panel
-        decrypt_box = toga.Box(style=Pack(direction=ROW, padding_bottom=10))
-        self.packet_input = toga.TextInput(placeholder="Paste DERF ciphertext packet...", style=Pack(flex=1, padding_right=5))
+        decrypt_box = toga.Box(style=Pack(direction=ROW, margin_bottom=10))
+        self.packet_input = toga.TextInput(placeholder="Paste DERF ciphertext packet...", style=Pack(flex=1, margin_right=5))
         decrypt_btn = toga.Button("🔓 DECRYPT", on_press=self.on_decrypt_packet, style=Pack(width=100))
         decrypt_box.add(self.packet_input)
         decrypt_box.add(decrypt_btn)
 
         # Send Input Line
-        send_box = toga.Box(style=Pack(direction=ROW, padding_bottom=5))
-        self.msg_input = toga.TextInput(placeholder="Type message...", style=Pack(flex=1, padding_right=5))
+        send_box = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
+        self.msg_input = toga.TextInput(placeholder="Type message...", style=Pack(flex=1, margin_right=5))
         send_btn = toga.Button("🔒 ENCRYPT", on_press=self.on_encrypt_and_send, style=Pack(width=100))
         send_box.add(self.msg_input)
         send_box.add(send_btn)
 
         # Action bar (Invite / Pairing)
-        action_box = toga.Box(style=Pack(direction=ROW, padding_top=5))
-        gen_invite_btn = toga.Button("➕ Gen Invite", on_press=self.on_gen_invite, style=Pack(flex=1, padding_right=3))
-        accept_invite_btn = toga.Button("📥 Accept Invite", on_press=self.on_accept_invite, style=Pack(flex=1, padding_left=3))
+        action_box = toga.Box(style=Pack(direction=ROW, margin_top=5))
+        gen_invite_btn = toga.Button("➕ Gen Invite", on_press=self.on_gen_invite, style=Pack(flex=1, margin_right=3))
+        accept_invite_btn = toga.Button("📥 Accept Invite", on_press=self.on_accept_invite, style=Pack(flex=1, margin_left=3))
         action_box.add(gen_invite_btn)
         action_box.add(accept_invite_btn)
 

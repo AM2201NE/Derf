@@ -624,15 +624,31 @@ def contact_delete(n):
         if os.path.exists(P(f"lc_pending_{n}.json")):
             secure_shred(P(f"lc_pending_{n}.json"))
 
+def _json_bytes_encoder(o):
+    if isinstance(o, bytes):
+        return {"__bytes__": b64(o)}
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+def _json_bytes_decoder(dct):
+    if "__bytes__" in dct:
+        return ub64(dct["__bytes__"])
+    return dct
+
 def vsave(p, o):
     n = os.urandom(12)
     a = ChaCha20Poly1305(hmac_sha256(VAULT, b"vault"))
-    open(p, "w").write(b64(n + a.encrypt(n, json.dumps(o).encode(), None)))
+    payload_bytes = json.dumps(o, default=_json_bytes_encoder).encode('utf-8')
+    ciphertext = a.encrypt(n, payload_bytes, None)
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(b64(n + ciphertext))
 
 def vload(p):
-    r = ub64(open(p).read().strip())
+    r = ub64(open(p, "r", encoding="utf-8").read().strip())
     a = ChaCha20Poly1305(hmac_sha256(VAULT, b"vault"))
-    return json.loads(a.decrypt(r[:12], r[12:], None))
+    decrypted_bytes = a.decrypt(r[:12], r[12:], None)
+    return json.loads(decrypted_bytes.decode('utf-8'), object_hook=_json_bytes_decoder)
+
+
 
 class Session:
     def __init__(s, sid, root, role, sck=None, rck=None, sn=0, rn=0, hsend=None, hrecv=None, skipped=None):

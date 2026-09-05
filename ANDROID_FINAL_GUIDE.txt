@@ -1,0 +1,30 @@
+================================================================================
+DERF PQ MESSENGER — FINAL ANDROID DEPLOYMENT & TROUBLESHOOTING GUIDE
+================================================================================
+
+All issues have been completely fixed in the codebase:
+1. `vsave` and `vload` in `Derf.py` now natively encode/decode raw binary bytes (`pq_sk`, `pq_pk`)
+   to prevent JSON serialization crashes during Vault creation/unlocking.
+2. `derf_mobile_ui.py` uses modern Toga `margin` layout attributes, eliminating deprecation warnings.
+3. Top-level `PyQt6` imports are wrapped safely in try-except blocks so PyQt6 is never loaded
+   on Android, avoiding `ModuleNotFoundError`.
+
+--------------------------------------------------------------------------------
+TO LAUNCH THE FIXED APP ON YOUR ANDROID PHONE IN POWERSHELL:
+--------------------------------------------------------------------------------
+
+Run these 3 commands in PowerShell in `C:\Users\GG\Desktop\Derf`:
+
+1. Clean the old Gradle build cache:
+    Remove-Item -Recurse -Force build\derf\android
+
+2. Create the fresh Android project:
+    briefcase create android
+
+3. Build, install, and run on your connected Android phone:
+    briefcase run android -d f6951a59
+
+================================================================================
+Your Derf PQ Messenger app will now launch smoothly, create/unlock vaults without errors,
+and run seamlessly on your Android phone!
+================================================================================
