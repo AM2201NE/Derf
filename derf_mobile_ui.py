@@ -3,6 +3,8 @@ Derf PQ Messenger Native Mobile UI for Android (Toga + Google Stitch Design Syst
 100% Full Feature Parity with PC Desktop UI:
 - Multi-profile Master Vault Encryption & Unlocking
 - High-Contrast Obsidian Dark Theme (#0E0E0E) with crisp White (#FFFFFF) Text
+- ScrollContainer integration for 100% responsive touch scrolling on any Android screen size
+- Robust Cross-Platform Clipboard integration using Derf.safe_copy() / Derf.safe_paste()
 - Chat & Direct Ciphertext Decryption Stage
 - Contacts & Handshake Pairing Hub (Add, Shred, 3-Step Handshake)
 - Identity Bundle & Out-Of-Band Safety Code Inspector
@@ -40,7 +42,7 @@ class DerfMobileApp(toga.App):
         self.monitoring_active = False
 
     def startup(self):
-        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10, background_color=COLOR_OBSIDIAN))
+        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=8, background_color=COLOR_OBSIDIAN))
         self.show_vault_screen()
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self.main_box
@@ -136,14 +138,14 @@ class DerfMobileApp(toga.App):
         self.main_box.clear()
 
         # Top Bar
-        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=10))
+        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         brand_lbl = toga.Label("DERF PQ MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
-        lock_btn = toga.Button("LOCK VAULT", on_press=self.on_lock_vault, style=Pack(width=100))
+        lock_btn = toga.Button("LOCK VAULT", on_press=self.on_lock_vault, style=Pack(width=90))
         top_bar.add(brand_lbl)
         top_bar.add(lock_btn)
 
         # Tab Navigation Bar
-        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=10))
+        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         chat_tab = toga.Button("CHAT", on_press=lambda w: self.switch_view("chat"), style=Pack(flex=1, margin_right=2))
         hub_tab = toga.Button("CONTACTS & PAIRING", on_press=lambda w: self.switch_view("hub"), style=Pack(flex=1, margin_right=2))
         id_tab = toga.Button("MY IDENTITY", on_press=lambda w: self.switch_view("identity"), style=Pack(flex=1))
@@ -153,15 +155,16 @@ class DerfMobileApp(toga.App):
         tab_bar.add(id_tab)
 
         # Status Notification Banner
-        self.banner_lbl = toga.Label("", style=Pack(margin_bottom=5, text_align=CENTER, color=COLOR_CYAN))
+        self.banner_lbl = toga.Label("", style=Pack(margin_bottom=4, text_align=CENTER, color=COLOR_CYAN))
 
-        # Dynamic Content Container
+        # Dynamic Content Container & Scroll Area
         self.content_container = toga.Box(style=Pack(direction=COLUMN, flex=1, background_color=COLOR_OBSIDIAN))
+        self.scroll_area = toga.ScrollContainer(content=self.content_container, style=Pack(flex=1))
 
         self.main_box.add(top_bar)
         self.main_box.add(tab_bar)
         self.main_box.add(self.banner_lbl)
-        self.main_box.add(self.content_container)
+        self.main_box.add(self.scroll_area)
 
         self.refresh_contacts_list()
         self.switch_view("chat")
@@ -191,7 +194,7 @@ class DerfMobileApp(toga.App):
     # -------------------------------------------------------------------------
     def render_chat_view(self):
         # Peer Selector Header
-        peer_info = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
+        peer_info = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         peer_text = f"Active Peer: {self.selected_peer}" if self.selected_peer else "Active Peer: [No Contact Selected - Add Contact in Hub]"
         self.peer_status_lbl = toga.Label(peer_text, style=Pack(color=COLOR_GREEN, flex=1, font_weight=BOLD))
         peer_info.add(self.peer_status_lbl)
@@ -199,12 +202,12 @@ class DerfMobileApp(toga.App):
         # Chat Transcript Area
         self.chat_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(flex=1, margin_bottom=10, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=180, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         # Decryption Panel Line
-        dec_lbl = toga.Label("Decrypt Received Ciphertext Packet:", style=Pack(margin_bottom=3, color=COLOR_CYAN))
-        dec_box = toga.Box(style=Pack(direction=ROW, margin_bottom=10))
+        dec_lbl = toga.Label("Decrypt Received Ciphertext Packet:", style=Pack(margin_bottom=2, color=COLOR_CYAN))
+        dec_box = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
         self.packet_input = toga.TextInput(
             placeholder="Paste DERF:V1: ciphertext packet here...",
             style=Pack(flex=1, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
@@ -214,7 +217,7 @@ class DerfMobileApp(toga.App):
         dec_box.add(dec_btn)
 
         # Composer Line
-        comp_lbl = toga.Label("Compose Encrypted Message:", style=Pack(margin_bottom=3, color=COLOR_WHITE))
+        comp_lbl = toga.Label("Compose Encrypted Message:", style=Pack(margin_bottom=2, color=COLOR_WHITE))
         comp_box = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
         self.msg_input = toga.TextInput(
             placeholder="Type confidential message...",
@@ -242,7 +245,7 @@ class DerfMobileApp(toga.App):
         try:
             cipher_text = Derf.encrypt_alien_stack(msg, self.selected_peer, self.idn)
             if cipher_text:
-                self.app.clipboard.set_text(cipher_text)
+                Derf.safe_copy(cipher_text)
                 self.chat_display.value += f"\n[Me -> {self.selected_peer}]: {msg}\n[Ciphertext copied to clipboard]\n"
                 self.msg_input.value = ""
                 self.banner_lbl.text = "DERF Ciphertext copied to clipboard!"
@@ -252,7 +255,7 @@ class DerfMobileApp(toga.App):
             self.banner_lbl.text = f"Encryption Error: {e}"
 
     def on_decrypt_packet(self, widget):
-        raw_pkt = self.packet_input.value.strip() or self.app.clipboard.get_text()
+        raw_pkt = self.packet_input.value.strip() or Derf.safe_paste().strip()
         if not raw_pkt or "DERF:V1:" not in raw_pkt:
             self.banner_lbl.text = "Provide a valid DERF:V1: ciphertext packet."
             return
@@ -273,12 +276,12 @@ class DerfMobileApp(toga.App):
     # TAB B: CONTACTS & HANDSHAKE HUB STAGE
     # -------------------------------------------------------------------------
     def render_hub_view(self):
-        hdr = toga.Label("CONTACTS & HANDSHAKE PAIRING HUB", style=Pack(margin_bottom=8, font_weight=BOLD, color=COLOR_CYAN))
+        hdr = toga.Label("CONTACTS & HANDSHAKE PAIRING HUB", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
 
         # Contacts Listing
         contacts_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(flex=1, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=160, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         formatted_list = "SAVED CONTACTS & RATCHET SESSION STATUS:\n" + "="*40 + "\n\n"
@@ -293,13 +296,13 @@ class DerfMobileApp(toga.App):
 
         contacts_display.value = formatted_list
 
-        # Add Contact Form Box (Inline without secondary windows)
-        add_box = toga.Box(style=Pack(direction=COLUMN, margin_bottom=10))
+        # Add Contact Form Box
+        add_box = toga.Box(style=Pack(direction=COLUMN, margin_bottom=8))
         add_lbl = toga.Label("Add New Contact:", style=Pack(margin_bottom=3, color=COLOR_WHITE, font_weight=BOLD))
 
         input_row = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
-        self.new_handle_input = toga.TextInput(placeholder="Handle Name (e.g. Alice)", style=Pack(width=140, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
-        self.new_key_input = toga.TextInput(placeholder="Paste ML-KEM-768 Public Key...", style=Pack(flex=1, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
+        self.new_handle_input = toga.TextInput(placeholder="Handle (e.g. Alice)", style=Pack(width=130, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
+        self.new_key_input = toga.TextInput(placeholder="Paste Public Key...", style=Pack(flex=1, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
         input_row.add(self.new_handle_input)
         input_row.add(self.new_key_input)
 
@@ -315,7 +318,7 @@ class DerfMobileApp(toga.App):
 
         # Handshake 3-Step Section
         pair_hdr = toga.Label("Handshake Pairing Actions:", style=Pack(margin_bottom=3, color=COLOR_CYAN, font_weight=BOLD))
-        pair_btn_box = toga.Box(style=Pack(direction=ROW, margin_top=3))
+        pair_btn_box = toga.Box(style=Pack(direction=ROW, margin_top=2))
 
         gen_inv_btn = toga.Button("1. GEN INVITE", on_press=self.on_gen_invite, style=Pack(flex=1, margin_right=2))
         accept_inv_btn = toga.Button("2. ACCEPT INVITE", on_press=self.on_accept_invite, style=Pack(flex=1, margin_right=2))
@@ -372,19 +375,19 @@ class DerfMobileApp(toga.App):
             req_blob, pend = Derf.hs_req(self.idn, self.contacts[self.selected_peer])
             Derf.vsave(Derf.P(f"lc_pending_{self.selected_peer}.json"), pend)
             inv_b64 = Derf.b64(req_blob)
-            self.app.clipboard.set_text(inv_b64)
+            Derf.safe_copy(inv_b64)
             self.banner_lbl.text = f"Handshake invite copied to clipboard! Send to {self.selected_peer}."
         except Exception as e:
             self.banner_lbl.text = f"Invite Error: {e}"
 
     def on_accept_invite(self, widget):
-        inv_b64 = self.app.clipboard.get_text()
+        inv_b64 = Derf.safe_paste().strip()
         if not inv_b64:
             self.banner_lbl.text = "Copy received invite code to clipboard first."
             return
 
         try:
-            raw_req = Derf.ub64(inv_b64.strip())
+            raw_req = Derf.ub64(inv_b64)
             rsp_blob, peer_pub = Derf.hs_rsp(self.idn, raw_req)
 
             peer_name = f"Peer_{Derf.b64(peer_pub[:4])}"
@@ -393,7 +396,7 @@ class DerfMobileApp(toga.App):
             self.refresh_contacts_list()
 
             rsp_b64 = Derf.b64(rsp_blob)
-            self.app.clipboard.set_text(rsp_b64)
+            Derf.safe_copy(rsp_b64)
 
             code = Derf.safety_code(Derf.id_fp(Derf.id_bundle(self.idn)), Derf.id_fp(peer_pub))
             self.banner_lbl.text = f"Invite accepted & reply copied! Safety Code: {code}"
@@ -405,13 +408,13 @@ class DerfMobileApp(toga.App):
             self.banner_lbl.text = "Select contact handle to complete pairing."
             return
 
-        rsp_b64 = self.app.clipboard.get_text()
+        rsp_b64 = Derf.safe_paste().strip()
         if not rsp_b64:
             self.banner_lbl.text = "Copy received reply code to clipboard first."
             return
 
         try:
-            raw_rsp = Derf.ub64(rsp_b64.strip())
+            raw_rsp = Derf.ub64(rsp_b64)
             pend_path = Derf.P(f"lc_pending_{self.selected_peer}.json")
             if not os.path.exists(pend_path):
                 self.banner_lbl.text = f"No pending handshake for {self.selected_peer}. Generate invite first."
@@ -430,11 +433,11 @@ class DerfMobileApp(toga.App):
     # TAB C: MY IDENTITY & SAFETY CODE INSPECTOR
     # -------------------------------------------------------------------------
     def render_identity_view(self):
-        hdr = toga.Label("MY IDENTITY & SAFETY CODE INSPECTOR", style=Pack(margin_bottom=8, font_weight=BOLD, color=COLOR_CYAN))
+        hdr = toga.Label("MY IDENTITY & SAFETY CODE INSPECTOR", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
 
         id_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(flex=1, margin_bottom=10, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=200, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         pk_b64 = Derf.b64(Derf.id_bundle(self.idn))
@@ -460,7 +463,7 @@ class DerfMobileApp(toga.App):
         self.content_container.add(copy_pk_btn)
 
     def copy_pk_to_clip(self, pk_b64):
-        self.app.clipboard.set_text(pk_b64)
+        Derf.safe_copy(pk_b64)
         self.banner_lbl.text = "Public Key Bundle copied to clipboard!"
 
     # -------------------------------------------------------------------------
@@ -475,7 +478,7 @@ class DerfMobileApp(toga.App):
         last_clip = ""
         while self.monitoring_active:
             try:
-                clip = self.app.clipboard.get_text()
+                clip = Derf.safe_paste()
                 if clip and clip != last_clip and "DERF:V1:" in clip:
                     last_clip = clip
                     print("[*] Clipboard monitor detected DERF packet!")
