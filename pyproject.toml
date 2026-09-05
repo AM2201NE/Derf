@@ -19,6 +19,7 @@ sources = [
     "derf",
     "Derf.py",
     "derf_qt_ui.py",
+    "derf_mobile_ui.py",
     "derf_peek.py",
     "derf_bg.py",
     "derf_windows_bg.py",
@@ -26,6 +27,7 @@ sources = [
 ]
 
 requires = [
+    "toga-core>=0.4.0",
     "cryptography>=41.0.0",
     "kyber-py>=0.1.0",
     "plyer>=2.1.0",
@@ -45,6 +47,7 @@ requires = [
 
 [tool.briefcase.app.derf.android]
 requires = [
+    "toga-android>=0.4.0",
     "cryptography>=41.0.0",
     "kyber-py>=0.1.0",
     "plyer>=2.1.0",

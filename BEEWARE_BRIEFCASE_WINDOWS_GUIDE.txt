@@ -31,11 +31,11 @@ In PowerShell, navigate to the Derf directory:
 
     cd C:\Users\GG\Desktop\Derf
 
-Run briefcase create:
+If updating dependencies or code structure in `pyproject.toml` (e.g., adding `toga-android`):
 
-    briefcase create android
+    briefcase update android -r
 
-(Or `briefcase update android -r` if updating dependencies or `pyproject.toml`).
+(Or run `briefcase create android` if initializing for the first time).
 
 --------------------------------------------------------------------------------
 STEP 4: BUILD & LOCATE YOUR STANDALONE .APK FILE
@@ -73,20 +73,21 @@ without needing to manually copy or install `.apk` files:
 
     adb devices
 
-   (You should see your phone listed, e.g., `1234567890ABCDEF  device`).
+   (You should see your phone listed, e.g., `f6951a59  device`).
 
-3. Directly launch and run the app on your connected phone in real time:
+3. Refresh dependencies and re-launch directly on your phone:
 
-    briefcase run android
+    briefcase update android -r
+    briefcase run android -d f6951a59
 
    Briefcase will automatically compile, push, install, launch the app on your phone,
    and stream live terminal logs directly to your Windows PowerShell prompt.
 
 4. Quick Code Iteration / Fast Refresh (No full recompile needed):
-   If you edit any Python code (e.g. `Derf.py`, `derf_qt_ui.py`) and want to instantly
+   If you edit any Python code (e.g. `Derf.py`, `derf_mobile_ui.py`) and want to instantly
    update and test on the phone without re-building Gradle:
 
-    briefcase run android -u
+    briefcase run android -u -d f6951a59
 
    The `-u` (update) flag syncs Python code changes directly to the app bundle on the phone
    and restarts the app immediately.
@@ -105,8 +106,8 @@ to your screen in real time so you can inspect and fix any issues instantly!
 
 ================================================================================
 SUMMARY OF DEBUG COMMANDS:
-• Direct live trial on phone:     `briefcase run android`
-• Sync code & re-launch on phone: `briefcase run android -u`
+• Refresh dependencies & build:   `briefcase update android -r`
+• Direct live trial on phone:     `briefcase run android -d f6951a59`
+• Sync code & re-launch on phone: `briefcase run android -u -d f6951a59`
 • Live log & exception stream:     `adb logcat *:S python:V stdio:V AndroidRuntime:E`
-• Build standalone APK file:      `briefcase build android`
 ================================================================================
