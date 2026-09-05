@@ -1,0 +1,69 @@
+[build-system]
+requires = ["briefcase"]
+
+[tool.briefcase]
+project_name = "Derf PQ Messenger"
+bundle = "com.derf.pq"
+version = "1.0.0"
+url = "https://github.com/AM2201NE/Derf"
+license = "MIT"
+author = "AM2201NE"
+author_email = "support@derf.pq"
+
+[tool.briefcase.app.derf]
+formal_name = "Derf PQ Messenger"
+description = "Post-Quantum + Forward-Secret Deniable Two-Box Messenger"
+long_description = "Derf uses NIST FIPS 203 ML-KEM-768 post-quantum key exchange, Double Ratchet forward secrecy, and Alien Stack compression."
+icon = "derf"
+sources = [
+    "derf",
+    "Derf.py",
+    "derf_qt_ui.py",
+    "derf_mobile_ui.py",
+    "derf_peek.py",
+    "derf_bg.py",
+    "derf_windows_bg.py",
+    "main.py"
+]
+
+requires = [
+    "toga-core>=0.4.0",
+    "cryptography>=41.0.0",
+    "kyber-py>=0.1.0",
+    "plyer>=2.1.0",
+    "pyperclip>=1.8.2",
+    "Pillow>=10.0.0",
+    "zstandard>=0.22.0"
+]
+
+[tool.briefcase.app.derf.windows]
+requires = [
+    "PyQt6>=6.5.0",
+    "pynput>=1.7.6",
+    "pystray>=0.19.5",
+    "keyboard>=0.13.5",
+    "pywin32>=306"
+]
+
+[tool.briefcase.app.derf.android]
+build_gradle_dependencies = [
+    "androidx.appcompat:appcompat:1.0.2",
+    "androidx.constraintlayout:constraintlayout:1.1.3",
+    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
+]
+requires = [
+    "toga-android>=0.4.0",
+    "cryptography>=41.0.0",
+    "kyber-py>=0.1.0",
+    "plyer>=2.1.0",
+    "pyperclip>=1.8.2",
+    "Pillow>=10.0.0",
+    "zstandard>=0.22.0"
+]
+permissions = [
+    "INTERNET",
+    "READ_EXTERNAL_STORAGE",
+    "WRITE_EXTERNAL_STORAGE",
+    "VIBRATE",
+    "BIND_ACCESSIBILITY_SERVICE"
+]

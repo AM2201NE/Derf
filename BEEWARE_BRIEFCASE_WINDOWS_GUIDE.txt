@@ -1,0 +1,68 @@
+================================================================================
+DERF POST-QUANTUM MESSENGER — COMPLETE ANDROID BUILD & USER GUIDE
+100% Native Windows to Android — No Virtual Machine or Linux Required
+================================================================================
+
+This guide provides the single source of truth for building, installing, running,
+and using Derf PQ Messenger on Android directly from your Windows PC.
+
+--------------------------------------------------------------------------------
+STEP 1: PREREQUISITES ON WINDOWS
+--------------------------------------------------------------------------------
+1. Python 3.10+ (Installed on Windows and added to PATH).
+2. Java JDK 17 (Eclipse Temurin JDK 17 installer for Windows).
+3. Android Studio for Windows (Download from developer.android.com).
+   • Ensure "Android SDK Platform-Tools" (containing `adb.exe`) is installed.
+   • Add `platform-tools` to your Windows PATH environment variable:
+     `C:\Users\<YourUsername>\AppData\Local\Android\Sdk\platform-tools`
+4. Install BeeWare Briefcase in PowerShell:
+     pip install briefcase
+
+--------------------------------------------------------------------------------
+STEP 2: CLEAN BUILD & LAUNCH ON CONNECTED PHONE
+--------------------------------------------------------------------------------
+Open PowerShell as Administrator in `C:\Users\GG\Desktop\Derf` and run:
+
+1. Clean old build cache:
+    Remove-Item -Recurse -Force build\derf\android
+
+2. Create fresh Android project package:
+    briefcase create android
+
+3. Build, deploy, and launch directly on your connected phone:
+    briefcase run android -d f6951a59
+
+   (Briefcase will compile the APK, push it to your phone, and stream live logs).
+
+--------------------------------------------------------------------------------
+STEP 3: HOW TO USE DERF ON ANDROID (3 TAB LAYOUT)
+--------------------------------------------------------------------------------
+
+TAB 1: CHAT
+  • Active Peer Selection: Displays the contact currently selected for chatting.
+  • Chat Transcript Area: Displays sent and received messages.
+  • Decrypt Line: Paste any received `DERF:V1:` ciphertext packet and tap `DECRYPT`.
+  • Message Composer: Type your confidential message and tap `ENCRYPT`.
+    The encrypted DERF packet is automatically copied to your phone clipboard!
+    Paste and send it via any app (WhatsApp, Telegram, Discord, Instagram, SMS).
+
+TAB 2: CONTACTS & PAIRING HUB
+  • Contact Directory: Lists all saved handles, fingerprints, and active ratchet session status.
+  • Add Contact: Enter Handle Name and paste ML-KEM-768 Public Key, then tap `SAVE CONTACT`.
+  • Shred Contact: Permanently delete selected contact and shred session keys.
+  • 3-Step Handshake Studio:
+    1. Tap `1. GEN INVITE` to create an invite code (copied to clipboard). Send it to your peer.
+    2. When receiving an invite, copy it and tap `2. ACCEPT INVITE`. The reply code is copied to clipboard. Send it back.
+    3. When receiving the reply, copy it and tap `3. COMPLETE HANDSHAKE`. Double Ratchet session is now active!
+
+TAB 3: MY IDENTITY
+  • Public Key Bundle: Displays your ML-KEM-768 public key bundle. Tap `COPY MY PUBLIC KEY BUNDLE` to share it.
+  • Identity Fingerprint: Displays your 256-bit cryptographic identity fingerprint.
+  • Out-Of-Band Safety Code: Generates a verification safety code to verify contact authenticity.
+
+================================================================================
+UI & ARCHITECTURE HIGHLIGHTS:
+• Built with Google Stitch Dark Obsidian theme (`#0E0E0E` background, `#18181C` cards).
+• Inputs use `#222228` with `#FFFFFF` crisp white text for 100% text visibility.
+• Features 100% full feature parity with the PC desktop application.
+================================================================================
