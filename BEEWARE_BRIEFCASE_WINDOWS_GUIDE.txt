@@ -29,14 +29,13 @@ In PowerShell, navigate to the Derf directory:
 
     cd C:\Users\GG\Desktop\Derf
 
-Update the app dependencies to ensure Chaquopy uses the updated `pyproject.toml`
-without desktop-only PyQt6 in the Android target:
+To update dependencies in the existing Android build:
 
-    briefcase update android -d -r
+    briefcase update android -r
 
-If updating cached Gradle files, you can also delete the build folder once:
+Or to perform a clean, fresh recreation of the Android project:
 
-    Remove-Item -Recurse -Force build\derf\android
+    Remove-Item -Recurse -Force build
     briefcase create android
 
 --------------------------------------------------------------------------------
