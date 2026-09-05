@@ -66,6 +66,15 @@ def _migrate(old, new):
             except Exception: pass
 
 def _data_dir(profile_name="default"):
+    is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
+                  hasattr(sys, 'getandroidapilevel') or sys.platform == 'android' or
+                  'ANDROID_ARGUMENT' in os.environ or 'PYTHON_SERVICE_ARGUMENT' in os.environ)
+    if is_android:
+        base = os.environ.get('FILESDIR', os.path.expanduser('~'))
+        d = os.path.join(base, 'Derf' if profile_name == 'default' else f'Derf_Profile_{profile_name}')
+        os.makedirs(d, exist_ok=True)
+        return d
+
     old = _old_dir()
     try:
         home = os.path.expanduser("~")
