@@ -24,9 +24,20 @@ try:
 except Exception:
     keyboard = None
 
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QGraphicsDropShadowEffect
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QEvent
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QLinearGradient, QCursor
+try:
+    from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QGraphicsDropShadowEffect
+    from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QEvent
+    from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QLinearGradient, QCursor
+    PYQT6_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYQT6_AVAILABLE = False
+    class QObject: pass
+    class pyqtSignal:
+        def __init__(self, *a, **k): pass
+        def connect(self, *a, **k): pass
+        def emit(self, *a, **k): pass
+    class QColor:
+        def __init__(self, *a, **k): pass
 
 IS_WIN32 = (sys.platform == "win32")
 

@@ -9,14 +9,18 @@ import json
 import base64
 import threading
 
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget,
-    QFrame, QDialog, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, QScrollArea,
-    QSplitter, QToolButton
-)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QSize
-from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QBrush
+try:
+    from PyQt6.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+        QLineEdit, QPushButton, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget,
+        QFrame, QDialog, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, QScrollArea,
+        QSplitter, QToolButton
+    )
+    from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QSize
+    from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QBrush
+    PYQT6_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYQT6_AVAILABLE = False
 
 import Derf
 import derf_peek
@@ -834,6 +838,10 @@ class DerfMainWindow(QMainWindow):
 
 
 def launch_pyqt_app(profile_name="default"):
+    if not PYQT6_AVAILABLE:
+        print("[!] PyQt6 is not available. Falling back to derf_mobile_ui...")
+        import derf_mobile_ui
+        return derf_mobile_ui.launch_mobile_app(profile_name)
     if Derf.PQ_KEM is None:
         try:
             Derf.PQ_KEM = Derf._load_pq()
