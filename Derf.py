@@ -83,7 +83,9 @@ def _data_dir(profile_name="default"):
         folder_name = APP_NAME if profile_name == "default" else f"{APP_NAME}_Profile_{profile_name}"
         d = os.path.join(desk, folder_name)
         os.makedirs(d, exist_ok=True)
-        t = os.path.join(d, ".wtest"); open(t, "w").write("x"); os.remove(t)
+        t = os.path.join(d, ".wtest")
+        with open(t, "w", encoding="utf-8") as _tf: _tf.write("x")
+        os.remove(t)
         if profile_name == "default":
             _migrate(old, d)
         return d

@@ -1,10 +1,10 @@
 """
 Derf PQ Messenger Native Mobile UI for Android.
 Designed following HIG & Modern Mobile Layout Standards:
-- Generous 48dp+ touch targets for buttons and inputs
+- Responsive Touch Navigation with 48dp+ tap targets
 - High-contrast Dark Obsidian Theme (#0E0E0E) with crisp White (#FFFFFF) text
-- Single-window layout with ScrollContainer for 100% touch responsiveness
-- Explicit Android Permission activation guidance banner (Notifications & Accessibility)
+- ScrollContainer integration for 100% touch responsiveness across all viewports
+- Unrecoverable 7-Pass Cryptographic Shredding for Individual Contacts
 - 100% Full Feature Parity with PC Desktop UI:
   * Multi-profile Master Vault Encryption & Unlocking
   * Chat & Direct Ciphertext Decryption Stage
@@ -70,7 +70,7 @@ class DerfMobileApp(toga.App):
             print(f"[!] Android runtime permissions request exception: {e}")
 
     def startup(self):
-        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10, background_color=COLOR_OBSIDIAN))
+        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=8, background_color=COLOR_OBSIDIAN))
         self.show_vault_screen()
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self.main_box
@@ -88,7 +88,7 @@ class DerfMobileApp(toga.App):
         )
         sub_lbl = toga.Label(
             f"Vault Profile: [{self.profile_name.upper()}]",
-            style=Pack(margin_bottom=20, text_align=CENTER, color=COLOR_MUTED)
+            style=Pack(margin_bottom=16, text_align=CENTER, color=COLOR_MUTED)
         )
 
         pass_lbl = toga.Label("Master Vault Password:", style=Pack(margin_bottom=5, color=COLOR_WHITE))
@@ -168,14 +168,14 @@ class DerfMobileApp(toga.App):
         self.main_box.clear()
 
         # Top Navigation Bar
-        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
+        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         brand_lbl = toga.Label("DERF PQ MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
         lock_btn = toga.Button("LOCK VAULT", on_press=self.on_lock_vault, style=Pack(width=110, height=44))
         top_bar.add(brand_lbl)
         top_bar.add(lock_btn)
 
         # Tab Navigation Bar
-        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
+        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         chat_tab = toga.Button("CHAT", on_press=lambda w: self.switch_view("chat"), style=Pack(flex=1, height=44, margin_right=2))
         hub_tab = toga.Button("CONTACTS & PAIRING", on_press=lambda w: self.switch_view("hub"), style=Pack(flex=1, height=44, margin_right=2))
         id_tab = toga.Button("MY IDENTITY", on_press=lambda w: self.switch_view("identity"), style=Pack(flex=1, height=44))
@@ -183,14 +183,6 @@ class DerfMobileApp(toga.App):
         tab_bar.add(chat_tab)
         tab_bar.add(hub_tab)
         tab_bar.add(id_tab)
-
-        # Permission Guidance Banner
-        perm_banner = toga.Box(style=Pack(direction=ROW, margin_bottom=6, background_color=COLOR_CARD))
-        perm_lbl = toga.Label(
-            "System Permissions: Grant Notifications & Accessibility in Android Settings for background decryption.",
-            style=Pack(margin=4, flex=1, color=COLOR_MUTED)
-        )
-        perm_banner.add(perm_lbl)
 
         # Status Notification Banner
         self.banner_lbl = toga.Label("", style=Pack(margin_bottom=4, text_align=CENTER, color=COLOR_CYAN))
@@ -201,7 +193,6 @@ class DerfMobileApp(toga.App):
 
         self.main_box.add(top_bar)
         self.main_box.add(tab_bar)
-        self.main_box.add(perm_banner)
         self.main_box.add(self.banner_lbl)
         self.main_box.add(self.scroll_area)
 
@@ -241,12 +232,12 @@ class DerfMobileApp(toga.App):
         # Chat Transcript Area
         self.chat_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=110, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=110, margin_bottom=6, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         # Decryption Panel Line
         dec_lbl = toga.Label("Decrypt Received Ciphertext Packet:", style=Pack(margin_bottom=2, color=COLOR_CYAN))
-        dec_box = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
+        dec_box = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         self.packet_input = toga.TextInput(
             placeholder="Paste DERF:V1: ciphertext packet here...",
             style=Pack(flex=1, height=48, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
@@ -320,7 +311,7 @@ class DerfMobileApp(toga.App):
         # Contacts Listing
         contacts_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=100, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=100, margin_bottom=6, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         formatted_list = "SAVED CONTACTS & RATCHET SESSION STATUS:\n" + "="*40 + "\n\n"
@@ -336,7 +327,7 @@ class DerfMobileApp(toga.App):
         contacts_display.value = formatted_list
 
         # Add Contact Form Box
-        add_box = toga.Box(style=Pack(direction=COLUMN, margin_bottom=8))
+        add_box = toga.Box(style=Pack(direction=COLUMN, margin_bottom=6))
         add_lbl = toga.Label("Add New Contact:", style=Pack(margin_bottom=3, color=COLOR_WHITE, font_weight=BOLD))
 
         input_row = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
@@ -347,7 +338,7 @@ class DerfMobileApp(toga.App):
 
         add_btn_row = toga.Box(style=Pack(direction=ROW))
         save_contact_btn = toga.Button("SAVE CONTACT", on_press=self.on_save_contact_inline, style=Pack(flex=1, height=48, margin_right=3))
-        shred_btn = toga.Button("SHRED CONTACT", on_press=self.on_shred_contact, style=Pack(flex=1, height=48, margin_left=3))
+        shred_btn = toga.Button("SHRED CONTACT [7-PASS]", on_press=self.on_shred_contact, style=Pack(flex=1, height=48, margin_left=3))
         add_btn_row.add(save_contact_btn)
         add_btn_row.add(shred_btn)
 
@@ -400,7 +391,7 @@ class DerfMobileApp(toga.App):
         self.selected_peer = None
         self.refresh_contacts_list()
         self.switch_view("hub")
-        self.banner_lbl.text = f"Shredded contact '{shredded}' & session state."
+        self.banner_lbl.text = f"Shredded contact '{shredded}' & unrecoverable session keys."
 
     # -------------------------------------------------------------------------
     # PAIRING HANDSHAKE WORKFLOWS
