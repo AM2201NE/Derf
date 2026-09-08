@@ -1,17 +1,15 @@
 """
-Derf PQ Messenger Native Mobile UI for Android.
-Designed following HIG & Modern Mobile Layout Standards:
-- Responsive Touch Navigation with 48dp+ tap targets
-- High-contrast Dark Obsidian Theme (#0E0E0E) with crisp White (#FFFFFF) text
-- ScrollContainer integration for 100% touch responsiveness across all viewports
-- Individual Contact Cards with 🗑️ SHRED button for unrecoverable 7-pass cryptographic shredding
-- Global 💣 NUKE ALL DATA button to securely shred all local vault data
-- 100% Full Feature Parity with PC Desktop UI:
-  * Multi-profile Master Vault Encryption & Unlocking
-  * Chat & Direct Ciphertext Decryption Stage
-  * Contacts & Handshake Pairing Hub (Add, Shred, 3-Step Handshake)
-  * Identity Bundle & Out-Of-Band Safety Code Inspector
-  * Background Clipboard Auto-Scan for DERF:V1: Ciphertext Packets
+Derf PQ Messenger Native Mobile UI for Android (Malewicz Method Structure-First Layout).
+Designed with 100% Full Feature Parity with PC Desktop Application:
+1. Multi-profile Vault Encryption & Master Password Unlocking
+2. High-Contrast Dark Obsidian Theme (#0E0E0E) with 8pt Spacing Grid
+3. Generous 48dp+ Touch Targets for Error-Free Tapping
+4. 4 Main Navigation Tabs:
+   - CHAT: Active peer banner, chat transcript, direct ciphertext packet decryption box, composer.
+   - CONTACTS: Contact list cards with status, fingerprint, select button, and individual trash bin shred button.
+   - PAIRING: 3-step Handshake Studio (Generate Invite, Accept Invite, Complete Handshake).
+   - IDENTITY & SETTINGS: ML-KEM-768 public key bundle, fingerprint, safety code, freshness window config, global nuke.
+5. In-Process Background Clipboard Auto-Scan for DERF:V1: Ciphertext Packets
 """
 import sys
 import os
@@ -23,15 +21,15 @@ from toga.style.pack import COLUMN, ROW, LEFT, RIGHT, CENTER, BOLD
 
 import Derf
 
-# HIG Compliant High-Contrast Design Tokens
-COLOR_OBSIDIAN = "#0E0E0E"   # Primary Stage Background
+# Malewicz Systematic 8pt Grid & High-Contrast Color Palette
+COLOR_OBSIDIAN = "#0E0E0E"   # Stage Background (Darkest)
 COLOR_CARD     = "#18181C"   # Card Panel Background
-COLOR_INPUT_BG = "#222228"   # Input Field Background
-COLOR_CYAN     = "#00F0FF"   # Electric Cyan Accent
-COLOR_GREEN    = "#00FF9D"   # Active / Paired Green
-COLOR_WHITE    = "#FFFFFF"   # High Contrast Reading Text
-COLOR_MUTED    = "#A0A0A8"   # Muted Subtitle Text
-COLOR_BORDER   = "#2A2A32"   # Container Border
+COLOR_INPUT_BG = "#222228"   # High-Contrast Input Container
+COLOR_CYAN     = "#00F0FF"   # Primary Brand / Accent
+COLOR_GREEN    = "#00FF9D"   # Active / Paired Status Green
+COLOR_WHITE    = "#FFFFFF"   # High-Contrast Crisp Reading Text
+COLOR_MUTED    = "#A0A0A8"   # Secondary Subtitle Text
+COLOR_BORDER   = "#2A2A32"   # Structural Divider Border
 COLOR_ERROR    = "#FF5252"   # Error Red
 
 
@@ -71,7 +69,7 @@ class DerfMobileApp(toga.App):
             print(f"[!] Android runtime permissions request exception: {e}")
 
     def startup(self):
-        # Automatically trigger Android permissions on app launch
+        # Trigger Android permissions on startup
         self.request_android_permissions()
 
         self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=8, background_color=COLOR_OBSIDIAN))
@@ -80,9 +78,9 @@ class DerfMobileApp(toga.App):
         self.main_window.content = self.main_box
         self.main_window.show()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # 1. VAULT UNLOCK & INITIALIZATION STAGE
-    # -------------------------------------------------------------------------
+    # =========================================================================
     def show_vault_screen(self):
         self.main_box.clear()
 
@@ -92,22 +90,22 @@ class DerfMobileApp(toga.App):
         )
         sub_lbl = toga.Label(
             f"Vault Profile: [{self.profile_name.upper()}]",
-            style=Pack(margin_bottom=16, text_align=CENTER, color=COLOR_MUTED)
+            style=Pack(margin_bottom=24, text_align=CENTER, color=COLOR_MUTED)
         )
 
-        pass_lbl = toga.Label("Master Vault Password:", style=Pack(margin_bottom=5, color=COLOR_WHITE))
+        pass_lbl = toga.Label("Master Vault Password:", style=Pack(margin_bottom=8, color=COLOR_WHITE))
         self.pass_input = toga.PasswordInput(
-            style=Pack(margin_bottom=15, height=48, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
+            style=Pack(margin_bottom=16, height=48, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
         )
 
-        btn_box = toga.Box(style=Pack(direction=ROW, margin_top=10))
-        unlock_btn = toga.Button("UNLOCK VAULT", on_press=self.on_unlock_vault, style=Pack(flex=1, height=48, margin_right=5))
-        create_btn = toga.Button("CREATE NEW VAULT", on_press=self.on_create_vault, style=Pack(flex=1, height=48, margin_left=5))
+        btn_box = toga.Box(style=Pack(direction=ROW, margin_top=8))
+        unlock_btn = toga.Button("UNLOCK VAULT", on_press=self.on_unlock_vault, style=Pack(flex=1, height=48, margin_right=4))
+        create_btn = toga.Button("CREATE NEW VAULT", on_press=self.on_create_vault, style=Pack(flex=1, height=48, margin_left=4))
 
         btn_box.add(unlock_btn)
         btn_box.add(create_btn)
 
-        self.status_lbl = toga.Label("", style=Pack(margin_top=15, text_align=CENTER, color=COLOR_ERROR))
+        self.status_lbl = toga.Label("", style=Pack(margin_top=16, text_align=CENTER, color=COLOR_ERROR))
 
         self.main_box.add(title_lbl)
         self.main_box.add(sub_lbl)
@@ -163,37 +161,39 @@ class DerfMobileApp(toga.App):
         except Exception as e:
             self.status_lbl.text = f"Vault Creation Failed: {e}"
 
-    # -------------------------------------------------------------------------
-    # 2. MAIN APPLICATION INTERFACE
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # 2. MAIN APPLICATION INTERFACE (MALEWICZ METHOD LAYOUT)
+    # =========================================================================
     def show_main_interface(self):
         self.main_box.clear()
 
-        # Top Navigation Bar
-        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
-        brand_lbl = toga.Label("DERF PQ MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
+        # Top Bar
+        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
+        brand_lbl = toga.Label("DERF MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
 
         lock_btn = toga.Button("LOCK", on_press=self.on_lock_vault, style=Pack(width=70, height=44, margin_right=4))
-        nuke_btn = toga.Button("💣 NUKE ALL", on_press=self.on_nuke_all_data, style=Pack(width=105, height=44, background_color=COLOR_ERROR))
+        nuke_btn = toga.Button("💣 NUKE", on_press=self.on_nuke_all_data, style=Pack(width=85, height=44, background_color=COLOR_ERROR))
 
         top_bar.add(brand_lbl)
         top_bar.add(lock_btn)
         top_bar.add(nuke_btn)
 
-        # Tab Navigation Bar
-        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
+        # 4 Main Navigation Tabs
+        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
         chat_tab = toga.Button("CHAT", on_press=lambda w: self.switch_view("chat"), style=Pack(flex=1, height=44, margin_right=2))
-        hub_tab = toga.Button("CONTACTS & PAIRING", on_press=lambda w: self.switch_view("hub"), style=Pack(flex=1, height=44, margin_right=2))
-        id_tab = toga.Button("MY IDENTITY", on_press=lambda w: self.switch_view("identity"), style=Pack(flex=1, height=44))
+        contacts_tab = toga.Button("CONTACTS", on_press=lambda w: self.switch_view("contacts"), style=Pack(flex=1, height=44, margin_right=2))
+        pairing_tab = toga.Button("PAIRING", on_press=lambda w: self.switch_view("pairing"), style=Pack(flex=1, height=44, margin_right=2))
+        id_tab = toga.Button("IDENTITY", on_press=lambda w: self.switch_view("identity"), style=Pack(flex=1, height=44))
 
         tab_bar.add(chat_tab)
-        tab_bar.add(hub_tab)
+        tab_bar.add(contacts_tab)
+        tab_bar.add(pairing_tab)
         tab_bar.add(id_tab)
 
         # Status Notification Banner
         self.banner_lbl = toga.Label("", style=Pack(margin_bottom=4, text_align=CENTER, color=COLOR_CYAN))
 
-        # Dynamic Content Container & Scroll Area
+        # Dynamic Content Container & Touch Scroll Area
         self.content_container = toga.Box(style=Pack(direction=COLUMN, flex=1, background_color=COLOR_OBSIDIAN))
         self.scroll_area = toga.ScrollContainer(content=self.content_container, style=Pack(flex=1))
 
@@ -210,8 +210,10 @@ class DerfMobileApp(toga.App):
         self.banner_lbl.text = ""
         if view_name == "chat":
             self.render_chat_view()
-        elif view_name == "hub":
-            self.render_hub_view()
+        elif view_name == "contacts":
+            self.render_contacts_view()
+        elif view_name == "pairing":
+            self.render_pairing_view()
         elif view_name == "identity":
             self.render_identity_view()
 
@@ -231,13 +233,13 @@ class DerfMobileApp(toga.App):
             if not self.selected_peer or self.selected_peer not in self.contacts:
                 self.selected_peer = list(self.contacts.keys())[0]
 
-    # -------------------------------------------------------------------------
-    # TAB A: CHAT & DECRYPTION STAGE
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # TAB 1: CHAT & DECRYPTION STAGE
+    # =========================================================================
     def render_chat_view(self):
-        # Peer Selector Header
+        # Active Peer Banner
         peer_info = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
-        peer_text = f"Active Peer: {self.selected_peer}" if self.selected_peer else "Active Peer: [No Contact Selected - Add Contact in Hub]"
+        peer_text = f"Active Peer: {self.selected_peer}" if self.selected_peer else "Active Peer: [No Contact Selected - Add Contact in Contacts Tab]"
         self.peer_status_lbl = toga.Label(peer_text, style=Pack(color=COLOR_GREEN, flex=1, font_weight=BOLD))
         peer_info.add(self.peer_status_lbl)
 
@@ -281,7 +283,7 @@ class DerfMobileApp(toga.App):
         if not msg:
             return
         if not self.selected_peer:
-            self.banner_lbl.text = "Error: Select a contact from Contacts & Pairing first."
+            self.banner_lbl.text = "Error: Select a contact from Contacts tab first."
             return
 
         try:
@@ -314,14 +316,14 @@ class DerfMobileApp(toga.App):
         except Exception as e:
             self.banner_lbl.text = f"Decryption Error: {e}"
 
-    # -------------------------------------------------------------------------
-    # TAB B: CONTACTS & HANDSHAKE HUB STAGE
-    # -------------------------------------------------------------------------
-    def render_hub_view(self):
-        hdr = toga.Label("CONTACTS & HANDSHAKE PAIRING HUB", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
+    # =========================================================================
+    # TAB 2: CONTACTS DIRECTORY STAGE (WITH INDIVIDUAL TRASH BIN SHREDDING)
+    # =========================================================================
+    def render_contacts_view(self):
+        hdr = toga.Label("CONTACT DIRECTORY & RATCHET STATUS", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
         self.content_container.add(hdr)
 
-        # Individual Contact Cards with Trash Bin Shred Buttons
+        # Individual Contact Cards
         if self.contacts:
             contacts_container = toga.Box(style=Pack(direction=COLUMN, margin_bottom=8))
             for handle, pub_bytes in self.contacts.items():
@@ -335,7 +337,7 @@ class DerfMobileApp(toga.App):
 
                 # Left Info Box
                 info_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=6))
-                title_lbl = toga.Label(f"{handle} {status_str}", style=Pack(color=COLOR_WHITE, font_weight=BOLD))
+                title_lbl = toga.Label(f"👤 {handle} {status_str}", style=Pack(color=COLOR_WHITE, font_weight=BOLD))
                 fp_lbl = toga.Label(f"FP: {fp}...", style=Pack(color=COLOR_MUTED))
                 info_box.add(title_lbl)
                 info_box.add(fp_lbl)
@@ -343,7 +345,7 @@ class DerfMobileApp(toga.App):
                 # Select / Activate Button
                 select_btn = toga.Button("SELECT", on_press=lambda w, h=handle: self.on_select_contact(h), style=Pack(width=70, height=40, margin_right=4))
 
-                # Right Trash Bin Shred Button
+                # Trash Bin Shred Button (7-Pass Unrecoverable Shredding)
                 shred_btn = toga.Button("🗑️ SHRED", on_press=lambda w, h=handle: self.on_shred_single_contact(h), style=Pack(width=85, height=40))
 
                 card.add(info_box)
@@ -353,7 +355,7 @@ class DerfMobileApp(toga.App):
 
             self.content_container.add(contacts_container)
         else:
-            no_contacts_lbl = toga.Label("No contacts saved. Use the Add Contact form below.", style=Pack(margin_bottom=8, color=COLOR_MUTED))
+            no_contacts_lbl = toga.Label("No contacts saved. Use the form below to add a contact.", style=Pack(margin_bottom=8, color=COLOR_MUTED))
             self.content_container.add(no_contacts_lbl)
 
         # Add Contact Form Box
@@ -372,21 +374,7 @@ class DerfMobileApp(toga.App):
         add_box.add(input_row)
         add_box.add(save_contact_btn)
 
-        # Handshake 3-Step Section
-        pair_hdr = toga.Label("Handshake Pairing Actions:", style=Pack(margin_bottom=3, color=COLOR_CYAN, font_weight=BOLD))
-        pair_btn_box = toga.Box(style=Pack(direction=ROW, margin_top=2))
-
-        gen_inv_btn = toga.Button("1. GEN INVITE", on_press=self.on_gen_invite, style=Pack(flex=1, height=48, margin_right=2))
-        accept_inv_btn = toga.Button("2. ACCEPT INVITE", on_press=self.on_accept_invite, style=Pack(flex=1, height=48, margin_right=2))
-        finish_pair_btn = toga.Button("3. COMPLETE HANDSHAKE", on_press=self.on_complete_pair, style=Pack(flex=1, height=48))
-
-        pair_btn_box.add(gen_inv_btn)
-        pair_btn_box.add(accept_inv_btn)
-        pair_btn_box.add(finish_pair_btn)
-
         self.content_container.add(add_box)
-        self.content_container.add(pair_hdr)
-        self.content_container.add(pair_btn_box)
 
     def on_select_contact(self, handle):
         self.selected_peer = handle
@@ -404,7 +392,7 @@ class DerfMobileApp(toga.App):
             Derf.contact_add(handle, pub_bytes)
             self.selected_peer = handle
             self.refresh_contacts_list()
-            self.switch_view("hub")
+            self.switch_view("contacts")
             self.banner_lbl.text = f"Contact '{handle}' saved successfully!"
         except Exception as e:
             self.banner_lbl.text = f"Invalid Key: {e}"
@@ -414,12 +402,34 @@ class DerfMobileApp(toga.App):
         if self.selected_peer == handle:
             self.selected_peer = None
         self.refresh_contacts_list()
-        self.switch_view("hub")
+        self.switch_view("contacts")
         self.banner_lbl.text = f"Permanently shredded contact '{handle}' & session state!"
 
-    # -------------------------------------------------------------------------
-    # PAIRING HANDSHAKE WORKFLOWS
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # TAB 3: HANDSHAKE PAIRING STUDIO (3-STEP FLOW)
+    # =========================================================================
+    def render_pairing_view(self):
+        hdr = toga.Label("HANDSHAKE PAIRING STUDIO", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
+
+        sub_lbl = toga.Label(
+            f"Target Contact: {self.selected_peer or '[None Selected - Select in Contacts Tab]'}",
+            style=Pack(margin_bottom=8, color=COLOR_WHITE)
+        )
+
+        pair_btn_box = toga.Box(style=Pack(direction=COLUMN, margin_top=4))
+
+        gen_inv_btn = toga.Button("1. GENERATE & COPY INVITE", on_press=self.on_gen_invite, style=Pack(fill_horizontal=True, height=48, margin_bottom=6))
+        accept_inv_btn = toga.Button("2. ACCEPT INVITE FROM CLIPBOARD", on_press=self.on_accept_invite, style=Pack(fill_horizontal=True, height=48, margin_bottom=6))
+        finish_pair_btn = toga.Button("3. COMPLETE HANDSHAKE FROM REPLY", on_press=self.on_complete_pair, style=Pack(fill_horizontal=True, height=48))
+
+        pair_btn_box.add(gen_inv_btn)
+        pair_btn_box.add(accept_inv_btn)
+        pair_btn_box.add(finish_pair_btn)
+
+        self.content_container.add(hdr)
+        self.content_container.add(sub_lbl)
+        self.content_container.add(pair_btn_box)
+
     def on_gen_invite(self, widget):
         if not self.selected_peer or self.selected_peer not in self.contacts:
             self.banner_lbl.text = "Save and select a contact first."
@@ -483,11 +493,11 @@ class DerfMobileApp(toga.App):
         except Exception as e:
             self.banner_lbl.text = f"Handshake Error: {e}"
 
-    # -------------------------------------------------------------------------
-    # TAB C: MY IDENTITY & SAFETY CODE INSPECTOR
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # TAB 4: MY IDENTITY & SAFETY CODE INSPECTOR & SETTINGS
+    # =========================================================================
     def render_identity_view(self):
-        hdr = toga.Label("MY IDENTITY & SAFETY CODE INSPECTOR", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
+        hdr = toga.Label("MY IDENTITY & SETTINGS", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
 
         id_display = toga.MultilineTextInput(
             readonly=True,
@@ -506,23 +516,45 @@ class DerfMobileApp(toga.App):
             code = Derf.safety_code(Derf.id_fp(Derf.id_bundle(self.idn)), Derf.id_fp(peer_pub))
             info_text += f"Out-Of-Band Safety Code ({self.selected_peer}):\n{code}\n"
         else:
-            info_text += "Out-Of-Band Safety Code: [Select a contact in Hub to view safety code]\n"
+            info_text += "Out-Of-Band Safety Code: [Select a contact in Contacts tab to view safety code]\n"
 
         id_display.value = info_text
 
-        copy_pk_btn = toga.Button("COPY MY PUBLIC KEY BUNDLE", on_press=lambda w: self.copy_pk_to_clip(pk_b64), style=Pack(flex=1, height=48))
+        copy_pk_btn = toga.Button("COPY MY PUBLIC KEY BUNDLE", on_press=lambda w: self.copy_pk_to_clip(pk_b64), style=Pack(fill_horizontal=True, height=48, margin_bottom=10))
+
+        # Freshness Window Config Section
+        fresh_box = toga.Box(style=Pack(direction=COLUMN, margin_bottom=8))
+        fresh_hdr = toga.Label("Freshness Window Tolerance (Seconds):", style=Pack(margin_bottom=3, color=COLOR_WHITE, font_weight=BOLD))
+
+        fresh_row = toga.Box(style=Pack(direction=ROW))
+        self.fresh_input = toga.TextInput(value=str(int(Derf.FRESH)), style=Pack(flex=1, height=48, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
+        save_fresh_btn = toga.Button("SAVE TOLERANCE", on_press=self.on_save_freshness, style=Pack(width=130, height=48))
+        fresh_row.add(self.fresh_input)
+        fresh_row.add(save_fresh_btn)
+
+        fresh_box.add(fresh_hdr)
+        fresh_box.add(fresh_row)
 
         self.content_container.add(hdr)
         self.content_container.add(id_display)
         self.content_container.add(copy_pk_btn)
+        self.content_container.add(fresh_box)
 
     def copy_pk_to_clip(self, pk_b64):
         Derf.safe_copy(pk_b64)
         self.banner_lbl.text = "Public Key Bundle copied to clipboard!"
 
-    # -------------------------------------------------------------------------
+    def on_save_freshness(self, widget):
+        try:
+            val = float(self.fresh_input.value.strip())
+            Derf.FRESH = val
+            self.banner_lbl.text = f"Freshness tolerance set to {int(val)} seconds!"
+        except Exception as e:
+            self.banner_lbl.text = f"Invalid tolerance value: {e}"
+
+    # =========================================================================
     # BACKGROUND CLIPBOARD AUTO-SCAN THREAD
-    # -------------------------------------------------------------------------
+    # =========================================================================
     def start_clipboard_monitoring(self):
         self.monitoring_active = True
         t = threading.Thread(target=self._clipboard_monitor_loop, daemon=True)

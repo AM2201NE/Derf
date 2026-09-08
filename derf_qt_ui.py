@@ -953,17 +953,11 @@ def launch_pyqt_app(profile_name="default"):
 
     return app.exec()
 
-if __name__ == "__main__":
-    sys.exit(launch_pyqt_app("default"))
 
     def do_nuke_all_data(self):
         reply = QMessageBox.question(
             self, "Confirm Complete Nuke",
-            "ARE YOU ABSOLUTELY SURE?
-
-This will PERMANENTLY SHRED all contacts, ratchet keys, identities, and vault files.
-
-This action CANNOT be recovered.",
+            "ARE YOU ABSOLUTELY SURE?\n\nThis will PERMANENTLY SHRED all contacts, ratchet keys, identities, and vault files.\n\nThis action CANNOT be recovered.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
@@ -971,3 +965,6 @@ This action CANNOT be recovered.",
             Derf.nuke_all_files()
             QMessageBox.information(self, "Nuked", "All profile vault data has been securely shredded. Exiting application.")
             QApplication.quit()
+
+if __name__ == "__main__":
+    sys.exit(launch_pyqt_app("default"))
