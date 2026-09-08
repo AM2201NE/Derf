@@ -1,14 +1,16 @@
 """
-Derf PQ Messenger Native Mobile UI for Android (Toga + Google Stitch Design System).
-100% Full Feature Parity with PC Desktop UI:
-- Multi-profile Master Vault Encryption & Unlocking
-- High-Contrast Obsidian Dark Theme (#0E0E0E) with crisp White (#FFFFFF) Text
-- ScrollContainer integration for 100% responsive touch scrolling on any Android screen size
-- Robust Cross-Platform Clipboard integration using Derf.safe_copy() / Derf.safe_paste()
-- Chat & Direct Ciphertext Decryption Stage
-- Contacts & Handshake Pairing Hub (Add, Shred, 3-Step Handshake)
-- Identity Bundle & Out-Of-Band Safety Code Inspector
-- Background Clipboard Auto-Scan for DERF:V1: Ciphertext Packets
+Derf PQ Messenger Native Mobile UI for Android.
+Designed following HIG & Modern Mobile Layout Standards:
+- Generous 48dp+ touch targets for buttons and inputs
+- High-contrast Dark Obsidian Theme (#0E0E0E) with crisp White (#FFFFFF) text
+- Single-window layout with ScrollContainer for 100% touch responsiveness
+- Explicit Android Permission activation guidance banner (Notifications & Accessibility)
+- 100% Full Feature Parity with PC Desktop UI:
+  * Multi-profile Master Vault Encryption & Unlocking
+  * Chat & Direct Ciphertext Decryption Stage
+  * Contacts & Handshake Pairing Hub (Add, Shred, 3-Step Handshake)
+  * Identity Bundle & Out-Of-Band Safety Code Inspector
+  * Background Clipboard Auto-Scan for DERF:V1: Ciphertext Packets
 """
 import sys
 import os
@@ -20,7 +22,7 @@ from toga.style.pack import COLUMN, ROW, LEFT, RIGHT, CENTER, BOLD
 
 import Derf
 
-# Google Stitch Dark Theme Tokens
+# HIG Compliant High-Contrast Design Tokens
 COLOR_OBSIDIAN = "#0E0E0E"   # Primary Stage Background
 COLOR_CARD     = "#18181C"   # Card Panel Background
 COLOR_INPUT_BG = "#222228"   # Input Field Background
@@ -42,7 +44,7 @@ class DerfMobileApp(toga.App):
         self.monitoring_active = False
 
     def startup(self):
-        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=8, background_color=COLOR_OBSIDIAN))
+        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10, background_color=COLOR_OBSIDIAN))
         self.show_vault_screen()
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self.main_box
@@ -65,12 +67,12 @@ class DerfMobileApp(toga.App):
 
         pass_lbl = toga.Label("Master Vault Password:", style=Pack(margin_bottom=5, color=COLOR_WHITE))
         self.pass_input = toga.PasswordInput(
-            style=Pack(margin_bottom=15, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
+            style=Pack(margin_bottom=15, height=48, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
         )
 
         btn_box = toga.Box(style=Pack(direction=ROW, margin_top=10))
-        unlock_btn = toga.Button("UNLOCK VAULT", on_press=self.on_unlock_vault, style=Pack(flex=1, margin_right=5))
-        create_btn = toga.Button("CREATE NEW VAULT", on_press=self.on_create_vault, style=Pack(flex=1, margin_left=5))
+        unlock_btn = toga.Button("UNLOCK VAULT", on_press=self.on_unlock_vault, style=Pack(flex=1, height=48, margin_right=5))
+        create_btn = toga.Button("CREATE NEW VAULT", on_press=self.on_create_vault, style=Pack(flex=1, height=48, margin_left=5))
 
         btn_box.add(unlock_btn)
         btn_box.add(create_btn)
@@ -137,22 +139,30 @@ class DerfMobileApp(toga.App):
     def show_main_interface(self):
         self.main_box.clear()
 
-        # Top Bar
-        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
+        # Top Navigation Bar
+        top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
         brand_lbl = toga.Label("DERF PQ MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
-        lock_btn = toga.Button("LOCK VAULT", on_press=self.on_lock_vault, style=Pack(width=90))
+        lock_btn = toga.Button("LOCK VAULT", on_press=self.on_lock_vault, style=Pack(width=110, height=44))
         top_bar.add(brand_lbl)
         top_bar.add(lock_btn)
 
         # Tab Navigation Bar
-        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
-        chat_tab = toga.Button("CHAT", on_press=lambda w: self.switch_view("chat"), style=Pack(flex=1, margin_right=2))
-        hub_tab = toga.Button("CONTACTS & PAIRING", on_press=lambda w: self.switch_view("hub"), style=Pack(flex=1, margin_right=2))
-        id_tab = toga.Button("MY IDENTITY", on_press=lambda w: self.switch_view("identity"), style=Pack(flex=1))
+        tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
+        chat_tab = toga.Button("CHAT", on_press=lambda w: self.switch_view("chat"), style=Pack(flex=1, height=44, margin_right=2))
+        hub_tab = toga.Button("CONTACTS & PAIRING", on_press=lambda w: self.switch_view("hub"), style=Pack(flex=1, height=44, margin_right=2))
+        id_tab = toga.Button("MY IDENTITY", on_press=lambda w: self.switch_view("identity"), style=Pack(flex=1, height=44))
 
         tab_bar.add(chat_tab)
         tab_bar.add(hub_tab)
         tab_bar.add(id_tab)
+
+        # Permission Guidance Banner
+        perm_banner = toga.Box(style=Pack(direction=ROW, margin_bottom=6, background_color=COLOR_CARD))
+        perm_lbl = toga.Label(
+            "System Permissions: Grant Notifications & Accessibility in Android Settings for background decryption.",
+            style=Pack(margin=4, flex=1, color=COLOR_MUTED)
+        )
+        perm_banner.add(perm_lbl)
 
         # Status Notification Banner
         self.banner_lbl = toga.Label("", style=Pack(margin_bottom=4, text_align=CENTER, color=COLOR_CYAN))
@@ -163,6 +173,7 @@ class DerfMobileApp(toga.App):
 
         self.main_box.add(top_bar)
         self.main_box.add(tab_bar)
+        self.main_box.add(perm_banner)
         self.main_box.add(self.banner_lbl)
         self.main_box.add(self.scroll_area)
 
@@ -210,9 +221,9 @@ class DerfMobileApp(toga.App):
         dec_box = toga.Box(style=Pack(direction=ROW, margin_bottom=8))
         self.packet_input = toga.TextInput(
             placeholder="Paste DERF:V1: ciphertext packet here...",
-            style=Pack(flex=1, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
+            style=Pack(flex=1, height=48, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
         )
-        dec_btn = toga.Button("DECRYPT", on_press=self.on_decrypt_packet, style=Pack(width=90))
+        dec_btn = toga.Button("DECRYPT", on_press=self.on_decrypt_packet, style=Pack(width=100, height=48))
         dec_box.add(self.packet_input)
         dec_box.add(dec_btn)
 
@@ -221,9 +232,9 @@ class DerfMobileApp(toga.App):
         comp_box = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
         self.msg_input = toga.TextInput(
             placeholder="Type confidential message...",
-            style=Pack(flex=1, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
+            style=Pack(flex=1, height=48, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE)
         )
-        enc_btn = toga.Button("ENCRYPT", on_press=self.on_encrypt_and_send, style=Pack(width=90))
+        enc_btn = toga.Button("ENCRYPT", on_press=self.on_encrypt_and_send, style=Pack(width=100, height=48))
         comp_box.add(self.msg_input)
         comp_box.add(enc_btn)
 
@@ -301,14 +312,14 @@ class DerfMobileApp(toga.App):
         add_lbl = toga.Label("Add New Contact:", style=Pack(margin_bottom=3, color=COLOR_WHITE, font_weight=BOLD))
 
         input_row = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
-        self.new_handle_input = toga.TextInput(placeholder="Handle (e.g. Alice)", style=Pack(width=130, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
-        self.new_key_input = toga.TextInput(placeholder="Paste Public Key...", style=Pack(flex=1, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
+        self.new_handle_input = toga.TextInput(placeholder="Handle (e.g. Alice)", style=Pack(width=130, height=48, margin_right=5, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
+        self.new_key_input = toga.TextInput(placeholder="Paste Public Key...", style=Pack(flex=1, height=48, background_color=COLOR_INPUT_BG, color=COLOR_WHITE))
         input_row.add(self.new_handle_input)
         input_row.add(self.new_key_input)
 
         add_btn_row = toga.Box(style=Pack(direction=ROW))
-        save_contact_btn = toga.Button("SAVE CONTACT", on_press=self.on_save_contact_inline, style=Pack(flex=1, margin_right=3))
-        shred_btn = toga.Button("SHRED CONTACT", on_press=self.on_shred_contact, style=Pack(flex=1, margin_left=3))
+        save_contact_btn = toga.Button("SAVE CONTACT", on_press=self.on_save_contact_inline, style=Pack(flex=1, height=48, margin_right=3))
+        shred_btn = toga.Button("SHRED CONTACT", on_press=self.on_shred_contact, style=Pack(flex=1, height=48, margin_left=3))
         add_btn_row.add(save_contact_btn)
         add_btn_row.add(shred_btn)
 
@@ -320,9 +331,9 @@ class DerfMobileApp(toga.App):
         pair_hdr = toga.Label("Handshake Pairing Actions:", style=Pack(margin_bottom=3, color=COLOR_CYAN, font_weight=BOLD))
         pair_btn_box = toga.Box(style=Pack(direction=ROW, margin_top=2))
 
-        gen_inv_btn = toga.Button("1. GEN INVITE", on_press=self.on_gen_invite, style=Pack(flex=1, margin_right=2))
-        accept_inv_btn = toga.Button("2. ACCEPT INVITE", on_press=self.on_accept_invite, style=Pack(flex=1, margin_right=2))
-        finish_pair_btn = toga.Button("3. COMPLETE HANDSHAKE", on_press=self.on_complete_pair, style=Pack(flex=1))
+        gen_inv_btn = toga.Button("1. GEN INVITE", on_press=self.on_gen_invite, style=Pack(flex=1, height=48, margin_right=2))
+        accept_inv_btn = toga.Button("2. ACCEPT INVITE", on_press=self.on_accept_invite, style=Pack(flex=1, height=48, margin_right=2))
+        finish_pair_btn = toga.Button("3. COMPLETE HANDSHAKE", on_press=self.on_complete_pair, style=Pack(flex=1, height=48))
 
         pair_btn_box.add(gen_inv_btn)
         pair_btn_box.add(accept_inv_btn)
@@ -456,7 +467,7 @@ class DerfMobileApp(toga.App):
 
         id_display.value = info_text
 
-        copy_pk_btn = toga.Button("COPY MY PUBLIC KEY BUNDLE", on_press=lambda w: self.copy_pk_to_clip(pk_b64), style=Pack(flex=1))
+        copy_pk_btn = toga.Button("COPY MY PUBLIC KEY BUNDLE", on_press=lambda w: self.copy_pk_to_clip(pk_b64), style=Pack(flex=1, height=48))
 
         self.content_container.add(hdr)
         self.content_container.add(id_display)
