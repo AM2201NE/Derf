@@ -43,6 +43,30 @@ class DerfMobileApp(toga.App):
         self.selected_peer = None
         self.monitoring_active = False
 
+    def request_android_permissions(self):
+        """Request Android permissions dynamically via Chaquopy / Pyjnius."""
+        is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
+                      hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
+        if not is_android:
+            return
+
+        try:
+            from java.jclass import java
+            Activity = java.lang.Class.forName("org.beeware.android.MainActivity")
+            activity = Activity.singletonThis
+            if activity is not None:
+                ActivityCompat = java.lang.Class.forName("androidx.core.app.ActivityCompat")
+                Manifest = java.lang.Class.forName("android.Manifest$permission")
+                permissions = [
+                    Manifest.READ_EXTERNAL_STORAGE,
+                    Manifest.WRITE_EXTERNAL_STORAGE,
+                    Manifest.POST_NOTIFICATIONS
+                ]
+                ActivityCompat.requestPermissions(activity, permissions, 101)
+                print("[+] Requested Android runtime permissions successfully.")
+        except Exception as e:
+            print(f"[!] Android runtime permissions request exception: {e}")
+
     def startup(self):
         self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10, background_color=COLOR_OBSIDIAN))
         self.show_vault_screen()
@@ -111,6 +135,7 @@ class DerfMobileApp(toga.App):
 
         try:
             if self._unlock_vault_core(pw):
+                self.request_android_permissions()
                 self.start_clipboard_monitoring()
                 self.show_main_interface()
         except Exception as e:
@@ -128,6 +153,7 @@ class DerfMobileApp(toga.App):
                 os.remove(id_path)
 
             if self._unlock_vault_core(pw):
+                self.request_android_permissions()
                 self.start_clipboard_monitoring()
                 self.show_main_interface()
         except Exception as e:
@@ -213,7 +239,7 @@ class DerfMobileApp(toga.App):
         # Chat Transcript Area
         self.chat_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=180, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=140, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         # Decryption Panel Line
@@ -292,7 +318,7 @@ class DerfMobileApp(toga.App):
         # Contacts Listing
         contacts_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=160, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=130, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         formatted_list = "SAVED CONTACTS & RATCHET SESSION STATUS:\n" + "="*40 + "\n\n"
@@ -448,7 +474,7 @@ class DerfMobileApp(toga.App):
 
         id_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=200, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=150, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         pk_b64 = Derf.b64(Derf.id_bundle(self.idn))

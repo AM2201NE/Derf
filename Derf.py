@@ -932,15 +932,65 @@ _CLIPBOARD_TEXT = ""
 def safe_copy(text):
     global _CLIPBOARD_TEXT
     _CLIPBOARD_TEXT = text
+    is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
+                  hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
+    if is_android:
+        try:
+            from java.jclass import java
+            Activity = java.lang.Class.forName("org.beeware.android.MainActivity")
+            activity = Activity.singletonThis
+            if activity is not None:
+                Context = java.lang.Class.forName("android.content.Context")
+                ClipData = java.lang.Class.forName("android.content.ClipData")
+                cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+                clip = ClipData.newPlainText("DERF", text)
+                cm.setPrimaryClip(clip)
+                return
+        except Exception as e:
+            print(f"[!] Android Pyjnius safe_copy exception: {e}")
+
+    try:
+        import plyer
+        plyer.clipboard.copy(text)
+    except Exception: pass
+
     try: pyperclip.copy(text)
     except Exception: pass
 
 def safe_paste():
     global _CLIPBOARD_TEXT
+    is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
+                  hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
+    if is_android:
+        try:
+            from java.jclass import java
+            Activity = java.lang.Class.forName("org.beeware.android.MainActivity")
+            activity = Activity.singletonThis
+            if activity is not None:
+                Context = java.lang.Class.forName("android.content.Context")
+                cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+                if cm.hasPrimaryClip():
+                    clip = cm.getPrimaryClip()
+                    if clip.getItemCount() > 0:
+                        item = clip.getItemAt(0)
+                        cs = item.coerceToText(activity)
+                        if cs is not None:
+                            val = str(cs.toString())
+                            if val: return val
+        except Exception as e:
+            print(f"[!] Android Pyjnius safe_paste exception: {e}")
+
     try:
         val = pyperclip.paste()
         if val: return val
     except Exception: pass
+
+    try:
+        import plyer
+        val = plyer.clipboard.paste()
+        if val: return val
+    except Exception: pass
+
     return _CLIPBOARD_TEXT
 
 def start_integrated_background_service(app_ref):

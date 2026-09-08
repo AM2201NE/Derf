@@ -35,7 +35,16 @@ Open PowerShell as Administrator in `C:\Users\GG\Desktop\Derf` and run:
    (Briefcase will compile the APK, push it to your phone, and stream live logs).
 
 --------------------------------------------------------------------------------
-STEP 3: HOW TO USE DERF ON ANDROID (3 TAB LAYOUT)
+STEP 3: ENABLING ACCESSIBILITY & NOTIFICATION PERMISSIONS
+--------------------------------------------------------------------------------
+Upon launching Derf on Android:
+1. When prompted by Android, grant "Notifications" permission.
+2. Open Android Phone Settings -> "Accessibility" -> "Installed / Downloaded Services".
+3. Tap "Derf Accessibility Service" (or "Derf PQ Messenger") and toggle it ON.
+4. Android will now allow Derf to detect copied `DERF:V1:` ciphertext packets automatically!
+
+--------------------------------------------------------------------------------
+STEP 4: HOW TO USE DERF ON ANDROID (3 TAB LAYOUT)
 --------------------------------------------------------------------------------
 
 TAB 1: CHAT
@@ -43,7 +52,7 @@ TAB 1: CHAT
   • Chat Transcript Area: Displays sent and received messages.
   • Decrypt Line: Paste any received `DERF:V1:` ciphertext packet and tap `DECRYPT`.
   • Message Composer: Type your confidential message and tap `ENCRYPT`.
-    The encrypted DERF packet is automatically copied to your phone clipboard!
+    The encrypted DERF packet is automatically copied directly to your phone clipboard!
     Paste and send it via any app (WhatsApp, Telegram, Discord, Instagram, SMS).
 
 TAB 2: CONTACTS & PAIRING HUB
@@ -56,13 +65,16 @@ TAB 2: CONTACTS & PAIRING HUB
     3. When receiving the reply, copy it and tap `3. COMPLETE HANDSHAKE`. Double Ratchet session is now active!
 
 TAB 3: MY IDENTITY
-  • Public Key Bundle: Displays your ML-KEM-768 public key bundle. Tap `COPY MY PUBLIC KEY BUNDLE` to share it.
+  • Public Key Bundle: Displays your ML-KEM-768 public key bundle.
+    Tap `COPY MY PUBLIC KEY BUNDLE` to copy your public key to clipboard and share it.
   • Identity Fingerprint: Displays your 256-bit cryptographic identity fingerprint.
   • Out-Of-Band Safety Code: Generates a verification safety code to verify contact authenticity.
 
 ================================================================================
-UI & ARCHITECTURE HIGHLIGHTS:
+UI & NATIVE CLIPBOARD HIGHLIGHTS:
+• Native Android Clipboard integration uses Android `ClipboardManager` via Chaquopy Pyjnius.
 • Built with Google Stitch Dark Obsidian theme (`#0E0E0E` background, `#18181C` cards).
 • Inputs use `#222228` with `#FFFFFF` crisp white text for 100% text visibility.
+• Generous 48dp+ touch targets for touch navigation.
 • Features 100% full feature parity with the PC desktop application.
 ================================================================================
