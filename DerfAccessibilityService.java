@@ -2,6 +2,8 @@ package org.derf.messenger;
 
 import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
+import com.chaquo.python.Python;
+import com.chaquo.python.PyObject;
 import java.util.List;
 
 public class DerfAccessibilityService extends AccessibilityService {
@@ -14,8 +16,14 @@ public class DerfAccessibilityService extends AccessibilityService {
             if (texts != null) {
                 for (CharSequence text : texts) {
                     if (text != null && text.toString().contains("DERF:V1:")) {
-                        // Trigger Python callback via Pyjnius
-                        PythonServiceManager.onDerfTextDetected(text.toString());
+                        try {
+                            if (Python.isStarted()) {
+                                PyObject module = Python.getInstance().getModule("Derf");
+                                module.callAttr("safe_copy", text.toString());
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                         break;
                     }
                 }
