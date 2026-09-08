@@ -336,6 +336,62 @@ class AddContactDialog(QDialog):
         return self.txt_name.text().strip(), self.txt_key.toPlainText().strip()
 
 
+class ContactRowWidget(QWidget):
+    def __init__(self, name, paired, fp_short, on_delete_callback, parent=None):
+        super().__init__(parent)
+        self.name = name
+        self.on_delete_callback = on_delete_callback
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(10)
+
+        # Avatar Icon
+        icon_lbl = QLabel("👤")
+        icon_lbl.setStyleSheet("font-size: 18px;")
+        layout.addWidget(icon_lbl)
+
+        # Info Column
+        info_box = QVBoxLayout()
+        info_box.setSpacing(2)
+
+        status_str = "[PAIRED]" if paired else "[UNPAIRED]"
+        status_color = COLOR_GREEN_ACTIVE if paired else COLOR_TEXT_MUTED
+
+        title_lbl = QLabel(f"<b>{name}</b> <font color='{status_color}'>{status_str}</font>")
+        title_lbl.setStyleSheet(f"color: {COLOR_TEXT_MAIN}; font-size: 13px;")
+
+        fp_lbl = QLabel(f"FP: {fp_short}...")
+        fp_lbl.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px;")
+
+        info_box.addWidget(title_lbl)
+        info_box.addWidget(fp_lbl)
+        layout.addLayout(info_box, stretch=1)
+
+        # Trash Bin Shred Button
+        self.btn_shred = QToolButton()
+        self.btn_shred.setText("🗑️")
+        self.btn_shred.setToolTip(f"Unrecoverable 7-pass shred for {name}")
+        self.btn_shred.setStyleSheet(f"""
+            QToolButton {{
+                background-color: transparent;
+                border: none;
+                font-size: 16px;
+                padding: 4px;
+            }}
+            QToolButton:hover {{
+                background-color: rgba(255, 82, 82, 0.2);
+                border-radius: 6px;
+            }}
+        """)
+        self.btn_shred.clicked.connect(self.handle_shred_click)
+        layout.addWidget(self.btn_shred)
+
+    def handle_shred_click(self):
+        if self.on_delete_callback:
+            self.on_delete_callback(self.name)
+
+
 class DerfMainWindow(QMainWindow):
     def __init__(self, vault_bytes, profile_name="default"):
         super().__init__()
@@ -429,6 +485,12 @@ class DerfMainWindow(QMainWindow):
         btn_del_c.setObjectName("DangerButton")
         btn_del_c.clicked.connect(self.do_delete_contact)
         sb_layout.addWidget(btn_del_c)
+
+        btn_nuke = QPushButton("💣 NUKE ALL DATA")
+        btn_nuke.setObjectName("DangerButton")
+        btn_nuke.setStyleSheet("background-color: #D32F2F; color: #FFFFFF; font-weight: bold;")
+        btn_nuke.clicked.connect(self.do_nuke_all_data)
+        sb_layout.addWidget(btn_nuke)
 
         main_layout.addWidget(sidebar)
 
@@ -674,16 +736,34 @@ class DerfMainWindow(QMainWindow):
         for name, key_bytes in contacts.items():
             sess_file = Derf.P(f"lc_session_{name}.json")
             paired = os.path.exists(sess_file)
-            status = "PAIRED" if paired else "UNPAIRED"
             fp = Derf.id_fp(key_bytes).hex()[:12]
 
-            item = QListWidgetItem(f"👤 {name} [{status}]\n   FP: {fp}...")
+            item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setSizeHint(QSize(220, 52))
+
+            row_widget = ContactRowWidget(name, paired, fp, self.do_delete_contact_by_name)
             self.contacts_list.addItem(item)
+            self.contacts_list.setItemWidget(item, row_widget)
 
         if self.contacts_list.count() > 0:
             self.contacts_list.setCurrentRow(0)
             self.on_contact_selected(self.contacts_list.currentItem())
+
+    def do_delete_contact_by_name(self, name):
+        reply = QMessageBox.question(
+            self, "Confirm Unrecoverable Shred",
+            f"Are you sure you want to shred contact '{name}' and all associated ratchet session keys?\n\nThis action CANNOT be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            Derf.contact_delete(name)
+            if self.selected_peer == name:
+                self.selected_peer = None
+                self.chat_display.clear()
+            self.refresh_contacts()
+            QMessageBox.information(self, "Shredded", f"Contact '{name}' and all session state permanently shredded.")
 
     def refresh_profile_keys(self):
         if self.idn and "pq_pk" in self.idn:
@@ -875,3 +955,19 @@ def launch_pyqt_app(profile_name="default"):
 
 if __name__ == "__main__":
     sys.exit(launch_pyqt_app("default"))
+
+    def do_nuke_all_data(self):
+        reply = QMessageBox.question(
+            self, "Confirm Complete Nuke",
+            "ARE YOU ABSOLUTELY SURE?
+
+This will PERMANENTLY SHRED all contacts, ratchet keys, identities, and vault files.
+
+This action CANNOT be recovered.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            Derf.nuke_all_files()
+            QMessageBox.information(self, "Nuked", "All profile vault data has been securely shredded. Exiting application.")
+            QApplication.quit()

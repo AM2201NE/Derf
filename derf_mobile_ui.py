@@ -4,7 +4,8 @@ Designed following HIG & Modern Mobile Layout Standards:
 - Responsive Touch Navigation with 48dp+ tap targets
 - High-contrast Dark Obsidian Theme (#0E0E0E) with crisp White (#FFFFFF) text
 - ScrollContainer integration for 100% touch responsiveness across all viewports
-- Unrecoverable 7-Pass Cryptographic Shredding for Individual Contacts
+- Individual Contact Cards with 🗑️ SHRED button for unrecoverable 7-pass cryptographic shredding
+- Global 💣 NUKE ALL DATA button to securely shred all local vault data
 - 100% Full Feature Parity with PC Desktop UI:
   * Multi-profile Master Vault Encryption & Unlocking
   * Chat & Direct Ciphertext Decryption Stage
@@ -70,6 +71,9 @@ class DerfMobileApp(toga.App):
             print(f"[!] Android runtime permissions request exception: {e}")
 
     def startup(self):
+        # Automatically trigger Android permissions on app launch
+        self.request_android_permissions()
+
         self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=8, background_color=COLOR_OBSIDIAN))
         self.show_vault_screen()
         self.main_window = toga.MainWindow(title=self.formal_name)
@@ -137,7 +141,6 @@ class DerfMobileApp(toga.App):
 
         try:
             if self._unlock_vault_core(pw):
-                self.request_android_permissions()
                 self.start_clipboard_monitoring()
                 self.show_main_interface()
         except Exception as e:
@@ -155,7 +158,6 @@ class DerfMobileApp(toga.App):
                 os.remove(id_path)
 
             if self._unlock_vault_core(pw):
-                self.request_android_permissions()
                 self.start_clipboard_monitoring()
                 self.show_main_interface()
         except Exception as e:
@@ -170,9 +172,13 @@ class DerfMobileApp(toga.App):
         # Top Navigation Bar
         top_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         brand_lbl = toga.Label("DERF PQ MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
-        lock_btn = toga.Button("LOCK VAULT", on_press=self.on_lock_vault, style=Pack(width=110, height=44))
+
+        lock_btn = toga.Button("LOCK", on_press=self.on_lock_vault, style=Pack(width=70, height=44, margin_right=4))
+        nuke_btn = toga.Button("💣 NUKE ALL", on_press=self.on_nuke_all_data, style=Pack(width=105, height=44, background_color=COLOR_ERROR))
+
         top_bar.add(brand_lbl)
         top_bar.add(lock_btn)
+        top_bar.add(nuke_btn)
 
         # Tab Navigation Bar
         tab_bar = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
@@ -212,6 +218,12 @@ class DerfMobileApp(toga.App):
     def on_lock_vault(self, widget):
         self.monitoring_active = False
         self.show_vault_screen()
+
+    def on_nuke_all_data(self, widget):
+        Derf.nuke_all_files()
+        self.monitoring_active = False
+        self.show_vault_screen()
+        self.status_lbl.text = "💣 All local profile vault data has been shredded!"
 
     def refresh_contacts_list(self):
         self.contacts = Derf.contacts_load()
@@ -307,24 +319,42 @@ class DerfMobileApp(toga.App):
     # -------------------------------------------------------------------------
     def render_hub_view(self):
         hdr = toga.Label("CONTACTS & HANDSHAKE PAIRING HUB", style=Pack(margin_bottom=6, font_weight=BOLD, color=COLOR_CYAN))
+        self.content_container.add(hdr)
 
-        # Contacts Listing
-        contacts_display = toga.MultilineTextInput(
-            readonly=True,
-            style=Pack(height=100, margin_bottom=6, background_color=COLOR_CARD, color=COLOR_WHITE)
-        )
-
-        formatted_list = "SAVED CONTACTS & RATCHET SESSION STATUS:\n" + "="*40 + "\n\n"
+        # Individual Contact Cards with Trash Bin Shred Buttons
         if self.contacts:
+            contacts_container = toga.Box(style=Pack(direction=COLUMN, margin_bottom=8))
             for handle, pub_bytes in self.contacts.items():
-                fp = Derf.b64(Derf.id_fp(pub_bytes))[:16]
-                sess_path = Derf.P(f"lc_session_{handle}.json")
-                status = "PAIRED (Active Ratchet)" if os.path.exists(sess_path) else "UNPAIRED (Needs Handshake)"
-                formatted_list += f"Handle: {handle}\nFingerprint: {fp}...\nStatus: {status}\n" + "-"*40 + "\n"
-        else:
-            formatted_list += "No contacts saved. Use the Add Contact section below."
+                card = toga.Box(style=Pack(direction=ROW, margin_bottom=4, margin_top=2, background_color=COLOR_CARD))
 
-        contacts_display.value = formatted_list
+                fp = Derf.b64(Derf.id_fp(pub_bytes))[:12]
+                sess_path = Derf.P(f"lc_session_{handle}.json")
+                paired = os.path.exists(sess_path)
+                status_str = "[PAIRED]" if paired else "[UNPAIRED]"
+                status_color = COLOR_GREEN if paired else COLOR_MUTED
+
+                # Left Info Box
+                info_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=6))
+                title_lbl = toga.Label(f"{handle} {status_str}", style=Pack(color=COLOR_WHITE, font_weight=BOLD))
+                fp_lbl = toga.Label(f"FP: {fp}...", style=Pack(color=COLOR_MUTED))
+                info_box.add(title_lbl)
+                info_box.add(fp_lbl)
+
+                # Select / Activate Button
+                select_btn = toga.Button("SELECT", on_press=lambda w, h=handle: self.on_select_contact(h), style=Pack(width=70, height=40, margin_right=4))
+
+                # Right Trash Bin Shred Button
+                shred_btn = toga.Button("🗑️ SHRED", on_press=lambda w, h=handle: self.on_shred_single_contact(h), style=Pack(width=85, height=40))
+
+                card.add(info_box)
+                card.add(select_btn)
+                card.add(shred_btn)
+                contacts_container.add(card)
+
+            self.content_container.add(contacts_container)
+        else:
+            no_contacts_lbl = toga.Label("No contacts saved. Use the Add Contact form below.", style=Pack(margin_bottom=8, color=COLOR_MUTED))
+            self.content_container.add(no_contacts_lbl)
 
         # Add Contact Form Box
         add_box = toga.Box(style=Pack(direction=COLUMN, margin_bottom=6))
@@ -336,15 +366,11 @@ class DerfMobileApp(toga.App):
         input_row.add(self.new_handle_input)
         input_row.add(self.new_key_input)
 
-        add_btn_row = toga.Box(style=Pack(direction=ROW))
-        save_contact_btn = toga.Button("SAVE CONTACT", on_press=self.on_save_contact_inline, style=Pack(flex=1, height=48, margin_right=3))
-        shred_btn = toga.Button("SHRED CONTACT [7-PASS]", on_press=self.on_shred_contact, style=Pack(flex=1, height=48, margin_left=3))
-        add_btn_row.add(save_contact_btn)
-        add_btn_row.add(shred_btn)
+        save_contact_btn = toga.Button("SAVE CONTACT", on_press=self.on_save_contact_inline, style=Pack(fill_horizontal=True, height=48))
 
         add_box.add(add_lbl)
         add_box.add(input_row)
-        add_box.add(add_btn_row)
+        add_box.add(save_contact_btn)
 
         # Handshake 3-Step Section
         pair_hdr = toga.Label("Handshake Pairing Actions:", style=Pack(margin_bottom=3, color=COLOR_CYAN, font_weight=BOLD))
@@ -358,11 +384,13 @@ class DerfMobileApp(toga.App):
         pair_btn_box.add(accept_inv_btn)
         pair_btn_box.add(finish_pair_btn)
 
-        self.content_container.add(hdr)
-        self.content_container.add(contacts_display)
         self.content_container.add(add_box)
         self.content_container.add(pair_hdr)
         self.content_container.add(pair_btn_box)
+
+    def on_select_contact(self, handle):
+        self.selected_peer = handle
+        self.banner_lbl.text = f"Active Peer set to '{handle}'"
 
     def on_save_contact_inline(self, widget):
         handle = self.new_handle_input.value.strip()
@@ -381,17 +409,13 @@ class DerfMobileApp(toga.App):
         except Exception as e:
             self.banner_lbl.text = f"Invalid Key: {e}"
 
-    def on_shred_contact(self, widget):
-        if not self.selected_peer:
-            self.banner_lbl.text = "Select a contact to shred."
-            return
-
-        shredded = self.selected_peer
-        Derf.contact_delete(shredded)
-        self.selected_peer = None
+    def on_shred_single_contact(self, handle):
+        Derf.contact_delete(handle)
+        if self.selected_peer == handle:
+            self.selected_peer = None
         self.refresh_contacts_list()
         self.switch_view("hub")
-        self.banner_lbl.text = f"Shredded contact '{shredded}' & unrecoverable session keys."
+        self.banner_lbl.text = f"Permanently shredded contact '{handle}' & session state!"
 
     # -------------------------------------------------------------------------
     # PAIRING HANDSHAKE WORKFLOWS
