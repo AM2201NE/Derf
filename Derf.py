@@ -975,7 +975,7 @@ def safe_paste():
                         item = clip.getItemAt(0)
                         cs = item.coerceToText(activity)
                         if cs is not None:
-                            val = str(cs.toString())
+                            val = str(cs)
                             if val: return val
         except Exception as e:
             print(f"[!] Android Chaquopy safe_paste exception: {e}")

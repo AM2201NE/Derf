@@ -57,13 +57,15 @@ class DerfMobileApp(toga.App):
             if activity is not None:
                 ActivityCompat = jclass("androidx.core.app.ActivityCompat")
                 StringClass = jclass("java.lang.String")
-                permissions = jarray(StringClass)([
-                    "android.permission.READ_EXTERNAL_STORAGE",
-                    "android.permission.WRITE_EXTERNAL_STORAGE",
-                    "android.permission.POST_NOTIFICATIONS"
-                ])
+                VERSION = jclass("android.os.Build$VERSION")
+                if VERSION.SDK_INT >= 33:
+                    req_perms = ["android.permission.POST_NOTIFICATIONS"]
+                else:
+                    req_perms = ["android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"]
+
+                permissions = jarray(StringClass)(req_perms)
                 ActivityCompat.requestPermissions(activity, permissions, 101)
-                print("[+] Requested Android runtime permissions successfully.")
+                print(f"[+] Requested Android runtime permissions successfully for SDK {VERSION.SDK_INT}.")
         except Exception as e:
             print(f"[!] Android runtime permissions request exception: {e}")
 

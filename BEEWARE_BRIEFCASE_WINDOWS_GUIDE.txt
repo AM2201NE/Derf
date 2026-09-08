@@ -19,7 +19,7 @@ STEP 1: PREREQUISITES ON WINDOWS
      pip install briefcase
 
 --------------------------------------------------------------------------------
-STEP 2: CLEAN BUILD & LAUNCH ON CONNECTED PHONE
+STEP 2: CLEAN BUILD, ACCESSIBILITY INJECTION & LAUNCH ON CONNECTED PHONE
 --------------------------------------------------------------------------------
 Open PowerShell as Administrator in `C:\Users\GG\Desktop\Derf` and run:
 
@@ -29,19 +29,24 @@ Open PowerShell as Administrator in `C:\Users\GG\Desktop\Derf` and run:
 2. Create fresh Android project package:
     briefcase create android
 
-3. Build, deploy, and launch directly on your connected phone:
+3. Inject Accessibility Service into Android Build Tree:
+    python inject_android_accessibility.py
+
+4. Build, deploy, and launch directly on your connected phone:
     briefcase run android -d f6951a59
 
    (Briefcase will compile the APK, push it to your phone, and stream live logs).
 
 --------------------------------------------------------------------------------
-STEP 3: ENABLING ACCESSIBILITY & NOTIFICATION PERMISSIONS
+STEP 3: ENABLING ACCESSIBILITY & NOTIFICATION PERMISSIONS ON YOUR PHONE
 --------------------------------------------------------------------------------
 Upon launching Derf on Android:
-1. When prompted by Android, grant "Notifications" permission.
-2. Open Android Phone Settings -> "Accessibility" -> "Installed / Downloaded Services".
-3. Tap "Derf Accessibility Service" (or "Derf PQ Messenger") and toggle it ON.
-4. Android will now allow Derf to detect copied `DERF:V1:` ciphertext packets automatically!
+1. When prompted by Android, tap "Allow" for Notifications permission.
+2. Open Android Phone Settings -> "Accessibility" -> "Installed Services" or "Downloaded Apps".
+3. Tap "Derf Accessibility Service" (Derf PQ Messenger Automatic Ciphertext Detection Service)
+   and toggle it ON!
+4. Android will now recognise Derf in system settings and allow it to detect copied
+   `DERF:V1:` ciphertext packets automatically!
 
 --------------------------------------------------------------------------------
 STEP 4: HOW TO USE DERF ON ANDROID (3 TAB LAYOUT)
@@ -72,7 +77,9 @@ TAB 3: MY IDENTITY
 
 ================================================================================
 UI & NATIVE CLIPBOARD HIGHLIGHTS:
-• Native Android Clipboard integration uses Android `ClipboardManager` via Chaquopy Pyjnius.
+• Native Android Clipboard integration uses Chaquopy Pyjnius Android `ClipboardManager`.
+• `python inject_android_accessibility.py` automatically registers the Accessibility Service
+  in `AndroidManifest.xml` so Android system settings recognises the app!
 • Built with Google Stitch Dark Obsidian theme (`#0E0E0E` background, `#18181C` cards).
 • Inputs use `#222228` with `#FFFFFF` crisp white text for 100% text visibility.
 • Generous 48dp+ touch targets for touch navigation.
