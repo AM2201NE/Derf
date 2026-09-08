@@ -30,11 +30,13 @@ fun ContactsComposeScreen() {
         try {
             val py = Python.getInstance()
             val derf = py.getModule("Derf")
-            val contactsMap = derf.callAttr("contacts_load").asMap()
+            val contactsObj = derf.callAttr("contacts_load")
+            val keysList = contactsObj.callAttr("keys").asList()
             val list = mutableListOf<ContactItem>()
-            for ((key, value) in contactsMap) {
-                val name = key.toString()
-                val fpBytes = derf.callAttr("id_fp", value)
+            for (keyObj in keysList) {
+                val name = keyObj.toString()
+                val valBytes = contactsObj.callAttr("get", name)
+                val fpBytes = derf.callAttr("id_fp", valBytes)
                 val fpHex = derf.callAttr("b64", fpBytes).toString().take(12)
                 val sessFile = derf.callAttr("P", "lc_session_$name.json").toString()
                 val isPaired = java.io.File(sessFile).exists()

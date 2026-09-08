@@ -20,9 +20,10 @@ fun PairingComposeScreen() {
         try {
             val py = Python.getInstance()
             val derf = py.getModule("Derf")
-            val contactsMap = derf.callAttr("contacts_load").asMap()
-            if (contactsMap.isNotEmpty()) {
-                activePeer = contactsMap.keys.first().toString()
+            val contactsObj = derf.callAttr("contacts_load")
+            val keysList = contactsObj.callAttr("keys").asList()
+            if (keysList.isNotEmpty()) {
+                activePeer = keysList[0].toString()
             }
         } catch (e: Exception) {
             bannerStatus = "Error: ${e.message}"
@@ -72,8 +73,8 @@ fun PairingComposeScreen() {
                     try {
                         val py = Python.getInstance()
                         val derf = py.getModule("Derf")
-                        val contacts = derf.callAttr("contacts_load").asMap()
-                        val peerPub = contacts[activePeer]
+                        val contactsObj = derf.callAttr("contacts_load")
+                        val peerPub = contactsObj.callAttr("get", activePeer)
                         val idn = derf.get("idn")
                         val res = derf.callAttr("hs_req", idn, peerPub)
                         val reqBlob = res.asList()[0]
@@ -156,8 +157,8 @@ fun PairingComposeScreen() {
                         val pend = derf.callAttr("vload", pendPath)
                         val idn = derf.get("idn")
                         derf.callAttr("hs_complete", idn, pend, rawRsp)
-                        val contacts = derf.callAttr("contacts_load").asMap()
-                        val peerPub = contacts[activePeer]
+                        val contactsObj = derf.callAttr("contacts_load")
+                        val peerPub = contactsObj.callAttr("get", activePeer)
                         val code = derf.callAttr("safety_code", derf.callAttr("id_fp", derf.callAttr("id_bundle", idn)), derf.callAttr("id_fp", peerPub)).toString()
                         bannerStatus = "Double Ratchet active with $activePeer! Safety Code: $code"
                     } catch (e: Exception) {

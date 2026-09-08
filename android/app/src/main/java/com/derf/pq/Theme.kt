@@ -1,6 +1,6 @@
 package com.derf.pq
 
-import androidx.compose.material3.DarkColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -15,7 +15,7 @@ val MutedText          = Color(0xFFA0A0A8)
 val BorderColor        = Color(0xFF2A2A32)
 val ErrorRed           = Color(0xFFFF5252)
 
-private val StitchDarkColorScheme = DarkColorScheme(
+private val StitchDarkColorScheme = darkColorScheme(
     primary = ElectricCyan,
     onPrimary = ObsidianBackground,
     secondary = ActiveGreen,

@@ -25,9 +25,10 @@ fun ChatComposeScreen() {
         try {
             val py = Python.getInstance()
             val derf = py.getModule("Derf")
-            val contactsMap = derf.callAttr("contacts_load").asMap()
-            if (contactsMap.isNotEmpty()) {
-                activePeer = contactsMap.keys.first().toString()
+            val contactsObj = derf.callAttr("contacts_load")
+            val keysList = contactsObj.callAttr("keys").asList()
+            if (keysList.isNotEmpty()) {
+                activePeer = keysList[0].toString()
             }
         } catch (e: Exception) {
             bannerStatus = "Error loading contacts: ${e.message}"
