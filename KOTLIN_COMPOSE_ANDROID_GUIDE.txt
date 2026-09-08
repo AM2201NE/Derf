@@ -7,20 +7,21 @@ You can build, package, deploy, and debug the native Kotlin + Jetpack Compose An
 100% inside VS Code (Terminal / PowerShell) without ever opening Android Studio!
 
 --------------------------------------------------------------------------------
-STEP 1: VS CODE EXTENSIONS FOR KOTLIN & GRADLE
+STEP 1: ANDROID SDK LOCATION (local.properties)
+--------------------------------------------------------------------------------
+Ensure `android/local.properties` contains your local Android SDK location:
+
+    sdk.dir=C\:\\Users\\GG\\AppData\\Local\\Android\\Sdk
+
+(Or set the environment variable in PowerShell: `$env:ANDROID_HOME="C:\Users\GG\AppData\Local\Android\Sdk"`).
+
+--------------------------------------------------------------------------------
+STEP 2: VS CODE EXTENSIONS FOR KOTLIN & GRADLE
 --------------------------------------------------------------------------------
 Inside VS Code, install these free extensions from the Marketplace:
 1. Kotlin (by mathiasfrohlich / JetBrains)
 2. Gradle for Java (by Microsoft)
 3. Android (by vscandroid) or Android iOS Emulator (by Mobile Apps)
-
---------------------------------------------------------------------------------
-STEP 2: PREREQUISITES ON YOUR PC
---------------------------------------------------------------------------------
-1. Java JDK 17 (Installed on Windows, e.g. Eclipse Temurin JDK 17).
-2. Android SDK Command-line Tools (containing `adb.exe` and `sdkmanager`).
-   • Add `platform-tools` to your Windows PATH:
-     `C:\Users\<YourUsername>\AppData\Local\Android\Sdk\platform-tools`
 
 --------------------------------------------------------------------------------
 STEP 3: BUILD THE .APK DIRECTLY IN VS CODE TERMINAL
