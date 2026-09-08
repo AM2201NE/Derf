@@ -23,7 +23,8 @@ sources = [
     "derf_peek.py",
     "derf_bg.py",
     "derf_windows_bg.py",
-    "main.py"
+    "main.py",
+    "DerfAccessibilityService.java"
 ]
 
 requires = [

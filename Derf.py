@@ -936,18 +936,18 @@ def safe_copy(text):
                   hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
     if is_android:
         try:
-            from java.jclass import java
-            Activity = java.lang.Class.forName("org.beeware.android.MainActivity")
+            from java import jclass
+            Activity = jclass("org.beeware.android.MainActivity")
             activity = Activity.singletonThis
             if activity is not None:
-                Context = java.lang.Class.forName("android.content.Context")
-                ClipData = java.lang.Class.forName("android.content.ClipData")
+                Context = jclass("android.content.Context")
+                ClipData = jclass("android.content.ClipData")
                 cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
                 clip = ClipData.newPlainText("DERF", text)
                 cm.setPrimaryClip(clip)
                 return
         except Exception as e:
-            print(f"[!] Android Pyjnius safe_copy exception: {e}")
+            print(f"[!] Android Chaquopy safe_copy exception: {e}")
 
     try:
         import plyer
@@ -963,11 +963,11 @@ def safe_paste():
                   hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
     if is_android:
         try:
-            from java.jclass import java
-            Activity = java.lang.Class.forName("org.beeware.android.MainActivity")
+            from java import jclass
+            Activity = jclass("org.beeware.android.MainActivity")
             activity = Activity.singletonThis
             if activity is not None:
-                Context = java.lang.Class.forName("android.content.Context")
+                Context = jclass("android.content.Context")
                 cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
                 if cm.hasPrimaryClip():
                     clip = cm.getPrimaryClip()
@@ -978,7 +978,7 @@ def safe_paste():
                             val = str(cs.toString())
                             if val: return val
         except Exception as e:
-            print(f"[!] Android Pyjnius safe_paste exception: {e}")
+            print(f"[!] Android Chaquopy safe_paste exception: {e}")
 
     try:
         val = pyperclip.paste()

@@ -44,24 +44,24 @@ class DerfMobileApp(toga.App):
         self.monitoring_active = False
 
     def request_android_permissions(self):
-        """Request Android permissions dynamically via Chaquopy / Pyjnius."""
+        """Request Android permissions dynamically via Chaquopy."""
         is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
                       hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
         if not is_android:
             return
 
         try:
-            from java.jclass import java
-            Activity = java.lang.Class.forName("org.beeware.android.MainActivity")
+            from java import jclass, jarray
+            Activity = jclass("org.beeware.android.MainActivity")
             activity = Activity.singletonThis
             if activity is not None:
-                ActivityCompat = java.lang.Class.forName("androidx.core.app.ActivityCompat")
-                Manifest = java.lang.Class.forName("android.Manifest$permission")
-                permissions = [
-                    Manifest.READ_EXTERNAL_STORAGE,
-                    Manifest.WRITE_EXTERNAL_STORAGE,
-                    Manifest.POST_NOTIFICATIONS
-                ]
+                ActivityCompat = jclass("androidx.core.app.ActivityCompat")
+                StringClass = jclass("java.lang.String")
+                permissions = jarray(StringClass)([
+                    "android.permission.READ_EXTERNAL_STORAGE",
+                    "android.permission.WRITE_EXTERNAL_STORAGE",
+                    "android.permission.POST_NOTIFICATIONS"
+                ])
                 ActivityCompat.requestPermissions(activity, permissions, 101)
                 print("[+] Requested Android runtime permissions successfully.")
         except Exception as e:
@@ -239,7 +239,7 @@ class DerfMobileApp(toga.App):
         # Chat Transcript Area
         self.chat_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=140, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=110, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         # Decryption Panel Line
@@ -318,7 +318,7 @@ class DerfMobileApp(toga.App):
         # Contacts Listing
         contacts_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=130, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=100, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         formatted_list = "SAVED CONTACTS & RATCHET SESSION STATUS:\n" + "="*40 + "\n\n"
@@ -474,7 +474,7 @@ class DerfMobileApp(toga.App):
 
         id_display = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(height=150, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
+            style=Pack(height=120, margin_bottom=8, background_color=COLOR_CARD, color=COLOR_WHITE)
         )
 
         pk_b64 = Derf.b64(Derf.id_bundle(self.idn))
