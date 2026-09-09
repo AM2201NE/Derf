@@ -917,6 +917,8 @@ class DerfMainWindow(QMainWindow):
         QMessageBox.information(self, "Saved", f"Freshness tolerance window set to {val} seconds.")
 
 
+
+
 def launch_pyqt_app(profile_name="default"):
     if not PYQT6_AVAILABLE:
         print("[!] PyQt6 is not available. Falling back to derf_mobile_ui...")

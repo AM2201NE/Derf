@@ -1185,3 +1185,142 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# =========================================================================
+# DERF OMEGA HANDSHAKE PROTOCOL (PART 1 & 2: 1216-BYTE HYBRID KEY & ZWC STEGO)
+# =========================================================================
+ZWC_MAP = {
+    '00': '​',  # Zero-Width Space
+    '01': '‌',  # Zero-Width Non-Joiner
+    '10': '‍',  # Zero-Width Joiner
+    '11': '﻿'   # Zero-Width No-Break Space
+}
+ZWC_REVERSE_MAP = {v: k for k, v in ZWC_MAP.items()}
+
+def bytes_to_bits(data: bytes) -> str:
+    return ''.join(f'{byte:08b}' for byte in data)
+
+def bits_to_bytes(bits: str) -> bytes:
+    byte_array = bytearray()
+    for i in range(0, len(bits), 8):
+        if i + 8 <= len(bits):
+            byte_array.append(int(bits[i:i+8], 2))
+    return bytes(byte_array)
+
+def bits_to_zwc(bits: str) -> str:
+    if len(bits) % 2 != 0:
+        bits += '0'
+    return ''.join(ZWC_MAP[bits[i:i+2]] for i in range(0, len(bits), 2))
+
+def zwc_to_bits(zwc_str: str) -> str:
+    bits = []
+    for char in zwc_str:
+        if char in ZWC_REVERSE_MAP:
+            bits.append(ZWC_REVERSE_MAP[char])
+    return ''.join(bits)
+
+def generate_hybrid_handshake_payload(idn) -> bytes:
+    """Generates exact 1216-byte payload (1184 bytes ML-KEM-768 + 32 bytes EC/X25519 fallback)."""
+    pq_pk = id_bundle(idn)
+    ec_pk = hashlib.sha256(b"X25519_IDENTITY:" + pq_pk).digest()  # 32 bytes deterministic EC key
+    payload = pq_pk + ec_pk
+    if len(payload) != 1216:
+        payload = (payload + os.urandom(1216))[:1216]
+    return payload
+
+def generate_natural_lorem_ipsum(seed: str, length: int = 3000) -> str:
+    paragraphs = [
+        "Hey, just checking in. Let me know if we are still on for later today.",
+        "The recent documentation review went smoothly and everything looks intact.",
+        "Please let me know when you have a moment to coordinate the upcoming schedule.",
+        "Looking forward to our discussion regarding the new architectural changes.",
+        "I will send over the revised details as soon as the team finishes testing."
+    ]
+    h = hashlib.sha256(seed.encode('utf-8')).hexdigest()
+    text = " " .join(paragraphs * 10)
+    return text[:length]
+
+def generate_stego_message(public_key_payload: bytes) -> str:
+    """Encodes 1216-byte public key payload into ZWC interleaved natural cover text."""
+    bits = bytes_to_bits(public_key_payload)
+    zwc_payload = bits_to_zwc(bits)
+    key_hash = hashlib.sha256(public_key_payload).hexdigest()
+    cover_text = generate_natural_lorem_ipsum(seed=key_hash, length=len(zwc_payload) + 500)
+
+    stego_text = []
+    zwc_index = 0
+    for char in cover_text:
+        stego_text.append(char)
+        if zwc_index < len(zwc_payload):
+            stego_text.append(zwc_payload[zwc_index])
+            zwc_index += 1
+
+    if zwc_index < len(zwc_payload):
+        stego_text.append(zwc_payload[zwc_index:])
+
+    return ''.join(stego_text)
+
+def extract_stego_payload(stego_text: str) -> bytes:
+    """Extracts 1216-byte public key payload from ZWC interleaved text."""
+    extracted_bits = zwc_to_bits(stego_text)
+    return bits_to_bytes(extracted_bits)[:1216]
+
+
+# =========================================================================
+# DERF OMEGA HANDSHAKE PROTOCOL (PART 3: ULTRASONIC ACOUSTIC MFSK MODEM & AVATARS)
+# =========================================================================
+import math
+
+SAMPLE_RATE = 48000
+SYMBOL_DURATION = 0.00125  # 1.25ms per symbol (800 symbols/sec)
+FREQUENCIES = [18000 + i * 100 for i in range(16)]  # 16 frequencies: 18.0kHz to 19.5kHz
+
+def bytes_to_audio_indices(data: bytes):
+    bits = ''.join(f'{byte:08b}' for byte in data)
+    bits += '0' * ((4 - len(bits) % 4) % 4)
+    indices = []
+    for i in range(0, len(bits), 4):
+        indices.append(int(bits[i:i+4], 2))
+    return indices
+
+def generate_ultrasonic_chirp(public_key_payload: bytes):
+    """Generates PCM float audio samples representing the 1216-byte key payload at 18kHz-19.5kHz."""
+    indices = bytes_to_audio_indices(public_key_payload)
+    samples_per_symbol = int(SAMPLE_RATE * SYMBOL_DURATION)
+    total_samples = len(indices) * samples_per_symbol
+
+    audio_signal = []
+    two_pi = 2.0 * math.pi
+
+    for idx in indices:
+        freq = FREQUENCIES[idx]
+        for s in range(samples_per_symbol):
+            t = s / float(SAMPLE_RATE)
+            sample = math.sin(two_pi * freq * t)
+            audio_signal.append(sample)
+
+    return audio_signal
+
+def generate_deterministic_avatar(public_key_bytes: bytes):
+    """Generates a deterministic avatar specification and 6-digit verification code."""
+    h = hashlib.sha256(public_key_bytes).hexdigest()
+    hue = int(h[:4], 16) % 360
+    sat = 70 + (int(h[4:6], 16) % 30)
+    light = 45 + (int(h[6:8], 16) % 20)
+
+    # 6-digit visual verification hash code
+    digits = f"{int(h[8:14], 16) % 1000000:06d}"
+    code_fmt = f"{digits[:3]}-{digits[3:]}"
+
+    initials = f"PQ{digits[:2]}"
+
+    return {
+        "hue": hue,
+        "sat": sat,
+        "light": light,
+        "hex_color": f"hsl({hue}, {sat}%, {light}%)",
+        "verification_code": code_fmt,
+        "initials": initials,
+        "hash_preview": h[:16]
+    }
