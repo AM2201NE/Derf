@@ -24,6 +24,8 @@ android {
             pip {
                 install "cryptography>=41.0.0"
                 install "kyber-py>=0.1.0"
+                install "numpy>=1.24.0"
+                install "scipy>=1.10.0"
                 install "zstandard>=0.22.0"
                 install "plyer>=2.1.0"
                 install "pyperclip>=1.8.2"
