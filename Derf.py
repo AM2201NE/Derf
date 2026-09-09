@@ -1114,27 +1114,60 @@ def start_integrated_background_service(app_ref):
             pass
 
     hotkey_registered = False
-    if py_keyboard:
+
+    if IS_WINDOWS:
+        def win32_hotkey_thread():
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                user32 = ctypes.windll.user32
+                HOTKEY_ENCRYPT = 101
+                HOTKEY_DECRYPT = 102
+                MOD_ALT = 0x0001
+                MOD_SHIFT = 0x0004
+                VK_D = 0x44
+                VK_Q = 0x51
+
+                if not user32.RegisterHotKey(None, HOTKEY_ENCRYPT, MOD_ALT | MOD_SHIFT, VK_D):
+                    print("[!] RegisterHotKey Alt+Shift+D failed")
+                if not user32.RegisterHotKey(None, HOTKEY_DECRYPT, MOD_ALT | MOD_SHIFT, VK_Q):
+                    print("[!] RegisterHotKey Alt+Shift+Q failed")
+
+                print("[*] Win32 RegisterHotKey loop active for Alt+Shift+D and Alt+Shift+Q!")
+
+                msg = wintypes.MSG()
+                while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+                    if msg.message == 0x0312:  # WM_HOTKEY
+                        if msg.wParam == HOTKEY_ENCRYPT:
+                            threading.Thread(target=do_bg_hotkey_encrypt, daemon=True).start()
+                        elif msg.wParam == HOTKEY_DECRYPT:
+                            threading.Thread(target=do_peek_decrypt, daemon=True).start()
+                    user32.TranslateMessage(ctypes.byref(msg))
+                    user32.DispatchMessageW(ctypes.byref(msg))
+            except Exception as e:
+                print(f"[!] Win32 hotkey thread exception: {e}")
+
+        threading.Thread(target=win32_hotkey_thread, daemon=True).start()
+        hotkey_registered = True
+
+    if not hotkey_registered and py_keyboard:
         try:
-            py_keyboard.add_hotkey('alt+shift+d', do_bg_hotkey_encrypt, suppress=False)
-            py_keyboard.add_hotkey('ctrl+shift+e', do_bg_hotkey_encrypt, suppress=False)
-            py_keyboard.add_hotkey('alt+shift+q', do_peek_decrypt, suppress=False)
-            py_keyboard.add_hotkey('ctrl+shift+q', do_peek_decrypt, suppress=False)
+            py_keyboard.add_hotkey('alt+shift+d', do_bg_hotkey_encrypt)
+            py_keyboard.add_hotkey('alt+shift+q', do_peek_decrypt)
             hotkey_registered = True
-            print("[*] Native Global Hotkeys active via keyboard module (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q / Ctrl+Shift+Q)")
+            print("[*] Native Global Hotkeys active via keyboard module (Alt+Shift+D / Alt+Shift+Q)")
         except Exception as e:
             print(f"keyboard module hotkey status: {repr(e)}")
 
-    if keyboard:
+    if not hotkey_registered and keyboard:
         try:
             listener = keyboard.GlobalHotKeys({
                 '<alt>+<shift>+d': do_bg_hotkey_encrypt,
-                '<ctrl>+<shift>+e': do_bg_hotkey_encrypt,
-                '<alt>+<shift>+q': do_peek_decrypt,
-                '<ctrl>+<shift>+q': do_peek_decrypt
+                '<alt>+<shift>+q': do_peek_decrypt
             })
             listener.start()
-            print("[*] Integrated Background Hotkey Listener active via pynput (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q / Ctrl+Shift+Q)")
+            print("[*] Integrated Background Hotkey Listener active via pynput (Alt+Shift+D / Alt+Shift+Q)")
         except Exception as e:
             print(f"pynput listener status: {repr(e)}")
 
