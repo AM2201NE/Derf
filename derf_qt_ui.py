@@ -916,7 +916,19 @@ class DerfMainWindow(QMainWindow):
             json.dump({"fresh": val}, f)
         QMessageBox.information(self, "Saved", f"Freshness tolerance window set to {val} seconds.")
 
+    def do_nuke_all_data(self):
+        reply = QMessageBox.question(
+            self, "Confirm Complete Nuke",
+            "ARE YOU ABSOLUTELY SURE? This will PERMANENTLY SHRED all contacts, ratchet keys, identities, and vault files.",
 
+
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            Derf.nuke_all_files()
+            QMessageBox.information(self, "Nuked", "All profile vault data has been securely shredded. Exiting application.")
+            QApplication.quit()
 
 
 def launch_pyqt_app(profile_name="default"):
@@ -955,18 +967,6 @@ def launch_pyqt_app(profile_name="default"):
 
     return app.exec()
 
-
-    def do_nuke_all_data(self):
-        reply = QMessageBox.question(
-            self, "Confirm Complete Nuke",
-            "ARE YOU ABSOLUTELY SURE?\n\nThis will PERMANENTLY SHRED all contacts, ratchet keys, identities, and vault files.\n\nThis action CANNOT be recovered.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            Derf.nuke_all_files()
-            QMessageBox.information(self, "Nuked", "All profile vault data has been securely shredded. Exiting application.")
-            QApplication.quit()
 
 if __name__ == "__main__":
     sys.exit(launch_pyqt_app("default"))
