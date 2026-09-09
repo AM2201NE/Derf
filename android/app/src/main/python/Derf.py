@@ -1116,23 +1116,25 @@ def start_integrated_background_service(app_ref):
     hotkey_registered = False
     if py_keyboard:
         try:
-            py_keyboard.add_hotkey('alt+shift+d', do_bg_hotkey_encrypt)
-            py_keyboard.add_hotkey('ctrl+shift+e', do_bg_hotkey_encrypt)
-            py_keyboard.add_hotkey('alt+shift+q', do_peek_decrypt)
+            py_keyboard.add_hotkey('alt+shift+d', do_bg_hotkey_encrypt, suppress=False)
+            py_keyboard.add_hotkey('ctrl+shift+e', do_bg_hotkey_encrypt, suppress=False)
+            py_keyboard.add_hotkey('alt+shift+q', do_peek_decrypt, suppress=False)
+            py_keyboard.add_hotkey('ctrl+shift+q', do_peek_decrypt, suppress=False)
             hotkey_registered = True
-            print("[*] Native Global Hotkeys active via keyboard module (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q)")
+            print("[*] Native Global Hotkeys active via keyboard module (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q / Ctrl+Shift+Q)")
         except Exception as e:
             print(f"keyboard module hotkey status: {repr(e)}")
 
-    if not hotkey_registered and keyboard:
+    if keyboard:
         try:
             listener = keyboard.GlobalHotKeys({
                 '<alt>+<shift>+d': do_bg_hotkey_encrypt,
                 '<ctrl>+<shift>+e': do_bg_hotkey_encrypt,
-                '<alt>+<shift>+q': do_peek_decrypt
+                '<alt>+<shift>+q': do_peek_decrypt,
+                '<ctrl>+<shift>+q': do_peek_decrypt
             })
             listener.start()
-            print("[*] Integrated Background Hotkey Listener active via pynput (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q)")
+            print("[*] Integrated Background Hotkey Listener active via pynput (Alt+Shift+D / Ctrl+Shift+E / Alt+Shift+Q / Ctrl+Shift+Q)")
         except Exception as e:
             print(f"pynput listener status: {repr(e)}")
 
