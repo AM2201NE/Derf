@@ -208,7 +208,7 @@ class VaultWindow(QWidget):
         layout.setSpacing(16)
 
         # Header Badge
-        badge = QLabel("🛡️ POST-QUANTUM VAULT")
+        badge = QLabel(" POST-QUANTUM VAULT")
         badge.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 11px; letter-spacing: 2px;")
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(badge)
@@ -370,7 +370,7 @@ class ContactRowWidget(QWidget):
 
         # Trash Bin Shred Button
         self.btn_shred = QToolButton()
-        self.btn_shred.setText("🗑️")
+        self.btn_shred.setText("")
         self.btn_shred.setToolTip(f"Unrecoverable 7-pass shred for {name}")
         self.btn_shred.setStyleSheet(f"""
             QToolButton {{
@@ -433,7 +433,7 @@ class DerfMainWindow(QMainWindow):
         sb_layout.setSpacing(14)
 
         # Logo Header
-        logo_lbl = QLabel("⚡ DERF MESSENGER")
+        logo_lbl = QLabel(" DERF MESSENGER")
         logo_lbl.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: 800; font-size: 16px; letter-spacing: 1px;")
         sb_layout.addWidget(logo_lbl)
 
@@ -449,9 +449,9 @@ class DerfMainWindow(QMainWindow):
 
         self.nav_btns = {}
         tabs = [
-            (0, "💬 Messages & Chat"),
+            (0, " Messages & Chat"),
             (1, "🤝 One-Time Pairing"),
-            (2, "🛡️ Security Specs"),
+            (2, " Security Specs"),
             (3, "⚙️ Profile Settings")
         ]
 
@@ -481,12 +481,12 @@ class DerfMainWindow(QMainWindow):
         btn_add_c.clicked.connect(self.do_add_contact_dialog)
         sb_layout.addWidget(btn_add_c)
 
-        btn_del_c = QPushButton("🗑️ SHRED CONTACT")
+        btn_del_c = QPushButton(" SHRED CONTACT")
         btn_del_c.setObjectName("DangerButton")
         btn_del_c.clicked.connect(self.do_delete_contact)
         sb_layout.addWidget(btn_del_c)
 
-        btn_nuke = QPushButton("💣 NUKE ALL DATA")
+        btn_nuke = QPushButton(" NUKE ALL DATA")
         btn_nuke.setObjectName("DangerButton")
         btn_nuke.setStyleSheet("background-color: #D32F2F; color: #FFFFFF; font-weight: bold;")
         btn_nuke.clicked.connect(self.do_nuke_all_data)
@@ -635,7 +635,7 @@ class DerfMainWindow(QMainWindow):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(14)
 
-        hdr = QLabel("🛡️ POST-QUANTUM SECURITY SPECIFICATIONS")
+        hdr = QLabel(" POST-QUANTUM SECURITY SPECIFICATIONS")
         hdr.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 16px;")
         layout.addWidget(hdr)
 
@@ -661,7 +661,7 @@ class DerfMainWindow(QMainWindow):
             l.setContentsMargins(16, 14, 16, 14)
             l.setSpacing(6)
 
-            t = QLabel(f"⚡ {title}")
+            t = QLabel(f" {title}")
             t.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 13px;")
             l.addWidget(t)
 
@@ -777,7 +777,7 @@ class DerfMainWindow(QMainWindow):
         contacts = Derf.contacts_load()
         if name in contacts:
             fp = Derf.id_fp(contacts[name]).hex()
-            self.lbl_chat_contact.setText(f"💬 Chatting with {name}")
+            self.lbl_chat_contact.setText(f" Chatting with {name}")
             self.lbl_chat_fp.setText(f"FP: {fp[:16]}...")
 
     def do_add_contact_dialog(self):

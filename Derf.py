@@ -936,7 +936,7 @@ _CLIPBOARD_TEXT = ""
 
 def safe_copy(text):
     global _CLIPBOARD_TEXT
-    _CLIPBOARD_TEXT = text
+    _CLIPBOARD_TEXT = str(text)
     is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
                   hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
     if is_android:
@@ -949,12 +949,29 @@ def safe_copy(text):
                     Context = jclass("android.content.Context")
                     ClipData = jclass("android.content.ClipData")
                     cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-                    clip = ClipData.newPlainText("DERF", text)
+                    clip = ClipData.newPlainText("DERF", str(text))
                     cm.setPrimaryClip(clip)
-                    print("[+] Successfully copied text to Android Clipboard via Chaquopy!")
+                    print(f"[+] Successfully copied {len(str(text))} chars to Android Clipboard via Chaquopy!")
                     return
             except Exception as e:
                 print(f"[!] Android Chaquopy safe_copy exception for {act_cls}: {e}")
+        try:
+            from java import jclass
+            Looper = jclass("android.os.Looper")
+            if Looper.myLooper() is None:
+                Looper.prepare()
+            ActivityThread = jclass("android.app.ActivityThread")
+            app = ActivityThread.currentApplication()
+            if app is not None:
+                Context = jclass("android.content.Context")
+                ClipData = jclass("android.content.ClipData")
+                cm = app.getSystemService(Context.CLIPBOARD_SERVICE)
+                clip = ClipData.newPlainText("DERF", str(text))
+                cm.setPrimaryClip(clip)
+                print(f"[+] Successfully copied {len(str(text))} chars via ActivityThread application context!")
+                return
+        except Exception as e2:
+            print(f"[!] ActivityThread fallback exception: {e2}")
 
     try:
         import plyer

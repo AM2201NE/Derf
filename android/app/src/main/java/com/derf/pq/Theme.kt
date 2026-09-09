@@ -5,21 +5,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val ObsidianBackground = Color(0xFF0E0E0E)
-val CardSurface        = Color(0xFF18181C)
-val InputSurface       = Color(0xFF222228)
-val ElectricCyan       = Color(0xFF00F0FF)
-val ActiveGreen        = Color(0xFF00FF9D)
-val CrispWhite         = Color(0xFFFFFFFF)
-val MutedText          = Color(0xFFA0A0A8)
-val BorderColor        = Color(0xFF2A2A32)
-val ErrorRed           = Color(0xFFFF5252)
+// Apple HIG / Frosted Obsidian Material Tokens
+val ObsidianBackground = Color(0xFF101014)
+val CardSurface        = Color(0xFF1C1C22)
+val InputSurface       = Color(0xFF262630)
+val ElectricCyan       = Color(0xFF00E5FF)
+val ActiveGreen        = Color(0xFF30D158)
+val CrispWhite         = Color(0xFFF2F2F7)
+val MutedText          = Color(0xFF8E8E93)
+val BorderColor        = Color(0xFF2C2C36)
+val ErrorRed           = Color(0xFFFF453A)
 
-private val StitchDarkColorScheme = darkColorScheme(
+private val AppleDesignColorScheme = darkColorScheme(
     primary = ElectricCyan,
-    onPrimary = ObsidianBackground,
+    onPrimary = Color(0xFF000000),
     secondary = ActiveGreen,
-    onSecondary = ObsidianBackground,
+    onSecondary = Color(0xFF000000),
     background = ObsidianBackground,
     onBackground = CrispWhite,
     surface = CardSurface,
@@ -34,7 +35,7 @@ private val StitchDarkColorScheme = darkColorScheme(
 @Composable
 fun DerfStitchTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = StitchDarkColorScheme,
+        colorScheme = AppleDesignColorScheme,
         content = content
     )
 }

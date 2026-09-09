@@ -183,7 +183,7 @@ fun MainAppScreen() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "⚡ Enable Quick-Peek Accessibility Overlay for in-place decryption",
+                                        text = " Enable Quick-Peek Accessibility Overlay for in-place decryption",
                                         color = ElectricCyan,
                                         fontSize = 12.sp,
                                         modifier = Modifier.weight(1f)

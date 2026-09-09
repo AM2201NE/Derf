@@ -1,6 +1,7 @@
 package com.derf.pq
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,9 +19,10 @@ import com.chaquo.python.Python
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatComposeScreen() {
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var activePeer by remember { mutableStateOf<String?>(null) }
     var contactsList by remember { mutableStateOf<List<String>>(emptyList()) }
-    var chatTranscript by remember { mutableStateOf("Welcome to Derf PQ Messenger.\n[Select or switch contacts above to message]\n") }
+    var chatTranscript by remember { mutableStateOf("Welcome to Derf PQ Messenger.\n[Select a recipient above to view context]\n") }
     var messageText by remember { mutableStateOf("") }
     var packetText by remember { mutableStateOf("") }
     var bannerStatus by remember { mutableStateOf("") }
@@ -45,96 +48,120 @@ fun ChatComposeScreen() {
             .background(ObsidianBackground)
             .padding(16.dp)
     ) {
-        // Active Peer Header & Selector Row
+        // Recipient Selection Header
         Text(
-            text = "SELECT RECIPIENT / PEER:",
+            text = "RECIPIENT",
             color = MutedText,
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 4.dp)
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(bottom = 6.dp)
         )
 
         if (contactsList.isEmpty()) {
             Surface(
                 color = CardSurface,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
+                    .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+                    .padding(bottom = 12.dp)
             ) {
                 Text(
                     text = "No saved contacts found. Add contacts in Contacts tab.",
                     color = ErrorRed,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(10.dp)
+                    modifier = Modifier.padding(12.dp)
                 )
             }
         } else {
-            // Horizontal Chip List for Instant Peer Switching
+            // HIG Segmented Recipient Selector
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = 12.dp)
             ) {
                 items(contactsList) { peer ->
                     val isSelected = peer == activePeer
-                    FilterChip(
-                        selected = isSelected,
+                    Surface(
                         onClick = {
                             activePeer = peer
-                            bannerStatus = "Switched active recipient to '$peer'"
+                            bannerStatus = "Active recipient: $peer"
                         },
-                        label = {
-                            Text(
-                                text = if (isSelected) "🟢 $peer" else peer,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) ObsidianBackground else CrispWhite
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ElectricCyan,
-                            containerColor = CardSurface
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = BorderColor,
-                            selectedBorderColor = ElectricCyan
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSelected) ElectricCyan else CardSurface,
+                        modifier = Modifier.border(
+                            1.dp,
+                            if (isSelected) ElectricCyan else BorderColor,
+                            RoundedCornerShape(20.dp)
                         )
-                    )
+                    ) {
+                        Text(
+                            text = peer,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) ObsidianBackground else CrispWhite,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // Active Peer Status Indicator
-        Text(
-            text = if (activePeer != null) "Active Chat: $activePeer" else "Active Chat: [None Selected]",
-            color = ActiveGreen,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        // Chat Transcript Box
+        // Active Peer Status Indicator Card
         Surface(
             color = CardSurface,
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .fillMaxWidth()
+                .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+                .padding(bottom = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "ACTIVE RECIPIENT",
+                    color = MutedText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = activePeer ?: "[None Selected]",
+                    color = ActiveGreen,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // Chat Transcript Container (Apple Card Style)
+        Surface(
+            color = CardSurface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
                 .weight(1f)
+                .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                 .padding(bottom = 12.dp)
         ) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp)
+                    .padding(14.dp)
             ) {
                 item {
                     Text(
                         text = chatTranscript,
                         color = CrispWhite,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
                     )
                 }
             }
@@ -144,17 +171,18 @@ fun ChatComposeScreen() {
             Text(
                 text = bannerStatus,
                 color = ElectricCyan,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
         // Decryption Section
         Text(
-            text = "Decrypt Received Ciphertext Packet:",
-            color = ElectricCyan,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            text = "DECRYPT INCOMING PACKET",
+            color = MutedText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
             modifier = Modifier.padding(bottom = 4.dp)
         )
         Row(
@@ -166,7 +194,7 @@ fun ChatComposeScreen() {
             OutlinedTextField(
                 value = packetText,
                 onValueChange = { packetText = it },
-                placeholder = { Text("Paste DERF:V1: packet here...", color = MutedText) },
+                placeholder = { Text("Paste DERF:V1: packet...", color = MutedText, fontSize = 13.sp) },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -214,10 +242,11 @@ fun ChatComposeScreen() {
 
         // Composer Section
         Text(
-            text = "Compose Encrypted Message:",
-            color = CrispWhite,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            text = "COMPOSE MESSAGE",
+            color = MutedText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
             modifier = Modifier.padding(bottom = 4.dp)
         )
         Row(
@@ -227,7 +256,7 @@ fun ChatComposeScreen() {
             OutlinedTextField(
                 value = messageText,
                 onValueChange = { messageText = it },
-                placeholder = { Text("Type confidential message...", color = MutedText) },
+                placeholder = { Text("Type confidential message...", color = MutedText, fontSize = 13.sp) },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -255,6 +284,7 @@ fun ChatComposeScreen() {
                         val derf = py.getModule("Derf")
                         val cipherText = derf.callAttr("encrypt_alien_stack", messageText, activePeer, derf.get("idn")).toString()
                         if (cipherText.isNotBlank() && cipherText != "None") {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(cipherText))
                             derf.callAttr("safe_copy", cipherText)
                             chatTranscript += "\n[Me -> $activePeer]: $messageText\n[Ciphertext copied to clipboard]\n"
                             messageText = ""

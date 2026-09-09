@@ -13,6 +13,7 @@ import com.chaquo.python.Python
 
 @Composable
 fun PairingComposeScreen() {
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var activePeer by remember { mutableStateOf<String?>(null) }
     var bannerStatus by remember { mutableStateOf("") }
 
@@ -82,6 +83,7 @@ fun PairingComposeScreen() {
                         val pendPath = derf.callAttr("P", "lc_pending_$activePeer.json").toString()
                         derf.callAttr("vsave", pendPath, pend)
                         val invB64 = derf.callAttr("b64", reqBlob).toString()
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(invB64))
                         derf.callAttr("safe_copy", invB64)
                         bannerStatus = "Handshake invite copied to clipboard! Send to $activePeer."
                     } catch (e: Exception) {
@@ -117,6 +119,7 @@ fun PairingComposeScreen() {
                         derf.callAttr("contact_add", peerName, peerPub)
                         activePeer = peerName
                         val rspB64 = derf.callAttr("b64", rspBlob).toString()
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(rspB64))
                         derf.callAttr("safe_copy", rspB64)
                         val code = derf.callAttr("safety_code", derf.callAttr("id_fp", derf.callAttr("id_bundle", idn)), derf.callAttr("id_fp", peerPub)).toString()
                         bannerStatus = "Invite accepted & reply copied! Safety Code: $code"

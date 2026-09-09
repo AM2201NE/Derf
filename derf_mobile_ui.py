@@ -172,7 +172,7 @@ class DerfMobileApp(toga.App):
         brand_lbl = toga.Label("DERF MESSENGER", style=Pack(font_weight=BOLD, color=COLOR_CYAN, flex=1))
 
         lock_btn = toga.Button("LOCK", on_press=self.on_lock_vault, style=Pack(width=70, height=44, margin_right=4))
-        nuke_btn = toga.Button("💣 NUKE", on_press=self.on_nuke_all_data, style=Pack(width=85, height=44, background_color=COLOR_ERROR))
+        nuke_btn = toga.Button(" NUKE", on_press=self.on_nuke_all_data, style=Pack(width=85, height=44, background_color=COLOR_ERROR))
 
         top_bar.add(brand_lbl)
         top_bar.add(lock_btn)
@@ -225,7 +225,7 @@ class DerfMobileApp(toga.App):
         Derf.nuke_all_files()
         self.monitoring_active = False
         self.show_vault_screen()
-        self.status_lbl.text = "💣 All local profile vault data has been shredded!"
+        self.status_lbl.text = " All local profile vault data has been shredded!"
 
     def refresh_contacts_list(self):
         self.contacts = Derf.contacts_load()
@@ -249,7 +249,7 @@ class DerfMobileApp(toga.App):
             picker_box = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
             for handle in self.contacts.keys():
                 is_sel = (handle == self.selected_peer)
-                lbl_txt = f"🟢 {handle}" if is_sel else handle
+                lbl_txt = f" {handle}" if is_sel else handle
                 btn = toga.Button(lbl_txt, on_press=lambda w, h=handle: self.on_switch_chat_peer(h), style=Pack(margin_right=5, height=38))
                 picker_box.add(btn)
             self.content_container.add(picker_box)
@@ -363,7 +363,7 @@ class DerfMobileApp(toga.App):
                 select_btn = toga.Button("SELECT", on_press=lambda w, h=handle: self.on_select_contact(h), style=Pack(width=70, height=40, margin_right=4))
 
                 # Trash Bin Shred Button (7-Pass Unrecoverable Shredding)
-                shred_btn = toga.Button("🗑️ SHRED", on_press=lambda w, h=handle: self.on_shred_single_contact(h), style=Pack(width=85, height=40))
+                shred_btn = toga.Button(" SHRED", on_press=lambda w, h=handle: self.on_shred_single_contact(h), style=Pack(width=85, height=40))
 
                 card.add(info_box)
                 card.add(select_btn)

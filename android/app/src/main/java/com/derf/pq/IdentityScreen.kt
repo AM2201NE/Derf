@@ -88,13 +88,20 @@ fun IdentityComposeScreen(onLock: () -> Unit) {
             }
         }
 
+        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+
         Button(
             onClick = {
                 try {
-                    val py = Python.getInstance()
-                    val derf = py.getModule("Derf")
-                    derf.callAttr("safe_copy", pkB64)
-                    bannerStatus = "Public Key Bundle copied to clipboard!"
+                    if (pkB64.isNotBlank()) {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(pkB64))
+                        val py = Python.getInstance()
+                        val derf = py.getModule("Derf")
+                        derf.callAttr("safe_copy", pkB64)
+                        bannerStatus = "Public Key Bundle copied to clipboard!"
+                    } else {
+                        bannerStatus = "Identity key empty."
+                    }
                 } catch (e: Exception) {
                     bannerStatus = "Copy Error: ${e.message}"
                 }
@@ -173,7 +180,7 @@ fun IdentityComposeScreen(onLock: () -> Unit) {
                 .fillMaxWidth()
                 .height(52.dp)
         ) {
-            Text("💣 NUKE ALL LOCAL DATA", fontWeight = FontWeight.Bold)
+            Text(" NUKE ALL LOCAL DATA", fontWeight = FontWeight.Bold)
         }
     }
 }
