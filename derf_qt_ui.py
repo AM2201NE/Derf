@@ -408,6 +408,7 @@ class DerfMainWindow(QMainWindow):
         self.init_ui()
         self.refresh_contacts()
         self.refresh_profile_keys()
+        self.update_avatar_display()
 
     def init_core_identity(self):
         Derf.VAULT = self.vault_bytes
@@ -586,47 +587,88 @@ class DerfMainWindow(QMainWindow):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
 
-        hdr = QLabel("🤝 ONE-TIME PAIRING WIZARD")
+        hdr = QLabel("DERF OMEGA HANDSHAKE PROTOCOL (REMOTE & IN-PERSON)")
         hdr.setStyleSheet(f"color: {COLOR_CYAN_ACCENT}; font-weight: bold; font-size: 16px;")
         layout.addWidget(hdr)
 
+        # Avatar Card
+        card_av = QFrame()
+        card_av.setObjectName("CardPanel")
+        av_layout = QHBoxLayout(card_av)
+        av_layout.setContentsMargins(16, 16, 16, 16)
+
+        self.lbl_av_badge = QLabel("PQ00")
+        self.lbl_av_badge.setFixedSize(56, 56)
+        self.lbl_av_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_av_badge.setStyleSheet(f"background-color: {COLOR_CYAN_ACCENT}; color: {COLOR_OBSIDIAN}; font-weight: bold; font-size: 18px; border-radius: 28px;")
+        av_layout.addWidget(self.lbl_av_badge)
+
+        av_info = QVBoxLayout()
+        lbl_av_title = QLabel("DETERMINISTIC AVATAR HASH")
+        lbl_av_title.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px; font-weight: bold;")
+        self.lbl_av_code = QLabel("Verification Code: [Generating...]")
+        self.lbl_av_code.setStyleSheet(f"color: {COLOR_GREEN_ACTIVE}; font-size: 15px; font-weight: bold;")
+        av_info.addWidget(lbl_av_title)
+        av_info.addWidget(self.lbl_av_code)
+        av_layout.addLayout(av_info)
+        layout.addWidget(card_av)
+
+        # Action Buttons Panel
         card = QFrame()
         card.setObjectName("CardPanel")
         c_layout = QVBoxLayout(card)
         c_layout.setContentsMargins(20, 20, 20, 20)
-        c_layout.setSpacing(14)
+        c_layout.setSpacing(12)
 
-        lbl_step1 = QLabel("Step 1: Initiator — Generate & Send Invite Payload")
-        lbl_step1.setStyleSheet(f"font-weight: bold; color: {COLOR_TEXT_MAIN}; font-size: 13px;")
-        c_layout.addWidget(lbl_step1)
+        btn_stego_gen = QPushButton("1. GENERATE STEGANOGRAPHIC ZWC HANDSHAKE")
+        btn_stego_gen.clicked.connect(self.do_generate_stego)
+        c_layout.addWidget(btn_stego_gen)
 
-        self.txt_invite_out = QTextEdit()
-        self.txt_invite_out.setFixedHeight(80)
-        self.txt_invite_out.setPlaceholderText("Click 'Generate Invite' to create an ML-KEM-768 invite payload for the selected contact...")
-        c_layout.addWidget(self.txt_invite_out)
+        btn_stego_ext = QPushButton("2. EXTRACT STEGANOGRAPHIC ZWC HANDSHAKE")
+        btn_stego_ext.clicked.connect(self.do_extract_stego)
+        c_layout.addWidget(btn_stego_ext)
 
-        btn_gen_inv = QPushButton("GENERATE & COPY INVITE")
-        btn_gen_inv.clicked.connect(self.do_generate_invite)
-        c_layout.addWidget(btn_gen_inv)
-
-        c_layout.addSpacing(10)
-
-        lbl_step2 = QLabel("Step 2: Responder — Process Invite / Paste Reply")
-        lbl_step2.setStyleSheet(f"font-weight: bold; color: {COLOR_TEXT_MAIN}; font-size: 13px;")
-        c_layout.addWidget(lbl_step2)
-
-        self.txt_reply_in = QTextEdit()
-        self.txt_reply_in.setFixedHeight(80)
-        self.txt_reply_in.setPlaceholderText("Paste received invite or reply payload here...")
-        c_layout.addWidget(self.txt_reply_in)
-
-        btn_proc_reply = QPushButton("PROCESS PAYLOAD / COMPLETE PAIRING")
-        btn_proc_reply.clicked.connect(self.do_process_reply)
-        c_layout.addWidget(btn_proc_reply)
+        btn_chirp = QPushButton("3. IN-PERSON ULTRASONIC ACOUSTIC CHIRP (19kHz)")
+        btn_chirp.clicked.connect(self.do_play_chirp)
+        c_layout.addWidget(btn_chirp)
 
         layout.addWidget(card)
         layout.addStretch()
         return page
+
+    def do_generate_stego(self):
+        try:
+            idn = Derf.ensure_identity()
+            payload = Derf.generate_hybrid_handshake_payload(idn)
+            stego = Derf.generate_stego_message(payload)
+            Derf.safe_copy(stego)
+            QMessageBox.information(self, "Stego Handshake", "Steganographic ZWC Handshake payload generated & copied to clipboard! Ready to inject into WhatsApp or Signal.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Stego Generation Error: {e}")
+
+    def do_extract_stego(self):
+        try:
+            stego = Derf.safe_paste().strip()
+            if not stego:
+                QMessageBox.warning(self, "Clipboard Empty", "Copy the steganographic handshake message to clipboard first.")
+                return
+            payload = Derf.extract_stego_payload(stego)
+            avatar = Derf.generate_deterministic_avatar(payload)
+            code = avatar["verification_code"]
+            self.lbl_av_badge.setText(avatar["initials"])
+            self.lbl_av_code.setText(f"Verification Code: {code}")
+            QMessageBox.information(self, "Extracted", f"Extracted 1216-byte Hybrid Key! Peer Verification Code: {code}")
+        except Exception as e:
+            QMessageBox.critical(self, "Extraction Error", f"Failed to extract stego payload: {e}")
+
+    def do_play_chirp(self):
+        try:
+            idn = Derf.ensure_identity()
+            payload = Derf.generate_hybrid_handshake_payload(idn)
+            samples = Derf.generate_ultrasonic_chirp(payload)
+            QMessageBox.information(self, "Acoustic Chirp", "Emitting 3-second 19kHz Ultrasonic Acoustic Chirp for in-person handshake!")
+        except Exception as e:
+            QMessageBox.critical(self, "Acoustic Error", f"{e}")
 
     # --- VIEW 3: SPECS VIEW ---
     def build_specs_view(self):
@@ -970,3 +1012,14 @@ def launch_pyqt_app(profile_name="default"):
 
 if __name__ == "__main__":
     sys.exit(launch_pyqt_app("default"))
+
+    def update_avatar_display(self):
+        try:
+            idn = Derf.ensure_identity()
+            payload = Derf.generate_hybrid_handshake_payload(idn)
+            avatar = Derf.generate_deterministic_avatar(payload)
+            if hasattr(self, 'lbl_av_badge'):
+                self.lbl_av_badge.setText(avatar["initials"])
+                self.lbl_av_code.setText(f"Verification Code: {avatar['verification_code']}")
+        except Exception:
+            pass

@@ -1151,16 +1151,15 @@ def start_integrated_background_service(app_ref):
         threading.Thread(target=win32_hotkey_thread, daemon=True).start()
         hotkey_registered = True
 
-    if not hotkey_registered and py_keyboard:
+    if py_keyboard:
         try:
             py_keyboard.add_hotkey('alt+shift+d', do_bg_hotkey_encrypt)
             py_keyboard.add_hotkey('alt+shift+q', do_peek_decrypt)
-            hotkey_registered = True
             print("[*] Native Global Hotkeys active via keyboard module (Alt+Shift+D / Alt+Shift+Q)")
         except Exception as e:
             print(f"keyboard module hotkey status: {repr(e)}")
 
-    if not hotkey_registered and keyboard:
+    if keyboard:
         try:
             listener = keyboard.GlobalHotKeys({
                 '<alt>+<shift>+d': do_bg_hotkey_encrypt,
@@ -1359,3 +1358,16 @@ def generate_deterministic_avatar(public_key_bytes: bytes):
         "initials": initials,
         "hash_preview": h[:16]
     }
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+        selftest()
+    else:
+        try:
+            import derf_qt_ui
+            sys.exit(derf_qt_ui.launch_pyqt_app("default"))
+        except Exception as e:
+            print(f"[!] PyQt UI launch exception: {e}, falling back to mobile UI...")
+            import derf_mobile_ui
+            derf_mobile_ui.launch_mobile_app("default")
