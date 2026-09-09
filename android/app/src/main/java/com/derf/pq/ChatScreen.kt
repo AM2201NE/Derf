@@ -97,7 +97,9 @@ fun ChatComposeScreen() {
                             containerColor = CardSurface
                         ),
                         border = FilterChipDefaults.filterChipBorder(
-                            borderColor = if (isSelected) ElectricCyan else BorderColor,
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = BorderColor,
                             selectedBorderColor = ElectricCyan
                         )
                     )
