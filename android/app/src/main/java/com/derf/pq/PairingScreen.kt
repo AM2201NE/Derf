@@ -29,8 +29,8 @@ fun PairingComposeScreen() {
             val idn = derf.callAttr("ensure_identity")
             val payload = derf.callAttr("generate_hybrid_handshake_payload", idn)
             val avatarObj = derf.callAttr("generate_deterministic_avatar", payload)
-            avatarCode = avatarObj.asMap()["verification_code"]?.toString() ?: "000-000"
-            avatarInitials = avatarObj.asMap()["initials"]?.toString() ?: "PQ00"
+            avatarCode = avatarObj.callAttr("get", "verification_code")?.toString() ?: "000-000"
+            avatarInitials = avatarObj.callAttr("get", "initials")?.toString() ?: "PQ00"
 
             val keysList = derf.callAttr("contacts_list").asList()
             if (keysList.isNotEmpty()) {
@@ -148,7 +148,7 @@ fun PairingComposeScreen() {
                         val stegoMsg = derf.callAttr("safe_paste").toString()
                         val recoveredPayload = derf.callAttr("extract_stego_payload", stegoMsg)
                         val avatarObj = derf.callAttr("generate_deterministic_avatar", recoveredPayload)
-                        val code = avatarObj.asMap()["verification_code"]?.toString() ?: "000-000"
+                        val code = avatarObj.callAttr("get", "verification_code")?.toString() ?: "000-000"
                         bannerStatus = "Extracted 1216-byte Hybrid Key! Peer Verification Code: $code"
                     } catch (e: Exception) {
                         bannerStatus = "Extract Error: ${e.message}"
