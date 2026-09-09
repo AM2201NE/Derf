@@ -600,7 +600,7 @@ class DerfMainWindow(QMainWindow):
         self.lbl_av_badge = QLabel("PQ00")
         self.lbl_av_badge.setFixedSize(56, 56)
         self.lbl_av_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_av_badge.setStyleSheet(f"background-color: {COLOR_CYAN_ACCENT}; color: {COLOR_OBSIDIAN}; font-weight: bold; font-size: 18px; border-radius: 28px;")
+        self.lbl_av_badge.setStyleSheet(f"background-color: {COLOR_CYAN_ACCENT}; color: {COLOR_SURFACE_LOWEST}; font-weight: bold; font-size: 18px; border-radius: 28px;")
         av_layout.addWidget(self.lbl_av_badge)
 
         av_info = QVBoxLayout()

@@ -1,0 +1,43 @@
+========================================================================
+           DERF POST-QUANTUM MESSENGER — ANDROID LAUNCH GUIDE
+========================================================================
+
+The Android build has compiled SUCCESSFULLY! (BUILD SUCCESSFUL in 40s)
+
+The compiled APK file is located at:
+   android\app\build\outputs\apk\debug\app-debug.apk
+
+------------------------------------------------------------------------
+WHY `installDebug` SAID "no devices/emulators found":
+------------------------------------------------------------------------
+`gradlew installDebug` requires a running Android phone (connected via USB/Wi-Fi)
+or an active Android Studio Emulator instance.
+
+------------------------------------------------------------------------
+HOW TO RUN THE APP ON YOUR PHONE OR EMULATOR:
+------------------------------------------------------------------------
+
+METHOD 1: DIRECT APK INSTALLATION ON YOUR PHONE (EASIEST)
+1. Copy `android\app\build\outputs\apk\debug\app-debug.apk` to your phone.
+2. Tap the file in your phone's File Manager and press "Install".
+3. Launch "Derf PQ Messenger" from your Android app drawer!
+
+METHOD 2: ADB INSTALLATION (USB DEBUGGING)
+1. Enable "Developer Options" & "USB Debugging" on your Android phone.
+2. Connect your phone via USB cable.
+3. Open Terminal / PowerShell and run:
+      adb devices
+   (Your phone will prompt "Allow USB Debugging?" - tap ALLOW).
+4. Run the install command:
+      cd android
+      .\gradlew.bat installDebug
+5. The app will install and launch automatically!
+
+METHOD 3: ANDROID STUDIO EMULATOR
+1. Open Android Studio -> Device Manager.
+2. Start any Virtual Device (e.g. Pixel 7 / Android 14 API 34).
+3. Run:
+      cd android
+      .\gradlew.bat installDebug
+      adb shell am start -n com.derf.pq/.MainActivity
+========================================================================
