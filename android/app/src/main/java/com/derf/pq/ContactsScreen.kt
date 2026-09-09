@@ -30,8 +30,8 @@ fun ContactsComposeScreen() {
         try {
             val py = Python.getInstance()
             val derf = py.getModule("Derf")
+            val keysList = derf.callAttr("contacts_list").asList()
             val contactsObj = derf.callAttr("contacts_load")
-            val keysList = contactsObj.callAttr("keys").asList()
             val list = mutableListOf<ContactItem>()
             for (keyObj in keysList) {
                 val name = keyObj.toString()

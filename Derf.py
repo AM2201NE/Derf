@@ -606,6 +606,9 @@ def load_sim_bob_session_standalone():
     except Exception:
         return None, None
 
+def contacts_list():
+    return list(contacts_load().keys())
+
 def contacts_load():
     d = {}
     if os.path.exists(P("lc_contacts.txt")):
@@ -937,19 +940,21 @@ def safe_copy(text):
     is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
                   hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
     if is_android:
-        try:
-            from java import jclass
-            Activity = jclass("org.beeware.android.MainActivity")
-            activity = Activity.singletonThis
-            if activity is not None:
-                Context = jclass("android.content.Context")
-                ClipData = jclass("android.content.ClipData")
-                cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-                clip = ClipData.newPlainText("DERF", text)
-                cm.setPrimaryClip(clip)
-                return
-        except Exception as e:
-            print(f"[!] Android Chaquopy safe_copy exception: {e}")
+        for act_cls in ["com.derf.pq.MainActivity", "org.beeware.android.MainActivity"]:
+            try:
+                from java import jclass
+                Activity = jclass(act_cls)
+                activity = getattr(Activity, "singletonThis", None) or getattr(Activity, "currentActivity", None)
+                if activity is not None:
+                    Context = jclass("android.content.Context")
+                    ClipData = jclass("android.content.ClipData")
+                    cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+                    clip = ClipData.newPlainText("DERF", text)
+                    cm.setPrimaryClip(clip)
+                    print("[+] Successfully copied text to Android Clipboard via Chaquopy!")
+                    return
+            except Exception as e:
+                print(f"[!] Android Chaquopy safe_copy exception for {act_cls}: {e}")
 
     try:
         import plyer
@@ -964,23 +969,24 @@ def safe_paste():
     is_android = ('ANDROID_DATA' in os.environ or 'ANDROID_ROOT' in os.environ or
                   hasattr(sys, 'getandroidapilevel') or sys.platform == 'android')
     if is_android:
-        try:
-            from java import jclass
-            Activity = jclass("org.beeware.android.MainActivity")
-            activity = Activity.singletonThis
-            if activity is not None:
-                Context = jclass("android.content.Context")
-                cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-                if cm.hasPrimaryClip():
-                    clip = cm.getPrimaryClip()
-                    if clip.getItemCount() > 0:
-                        item = clip.getItemAt(0)
-                        cs = item.coerceToText(activity)
-                        if cs is not None:
-                            val = str(cs)
-                            if val: return val
-        except Exception as e:
-            print(f"[!] Android Chaquopy safe_paste exception: {e}")
+        for act_cls in ["com.derf.pq.MainActivity", "org.beeware.android.MainActivity"]:
+            try:
+                from java import jclass
+                Activity = jclass(act_cls)
+                activity = getattr(Activity, "singletonThis", None) or getattr(Activity, "currentActivity", None)
+                if activity is not None:
+                    Context = jclass("android.content.Context")
+                    cm = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+                    if cm.hasPrimaryClip():
+                        clip = cm.getPrimaryClip()
+                        if clip is not None and clip.getItemCount() > 0:
+                            item = clip.getItemAt(0)
+                            cs = item.coerceToText(activity)
+                            if cs is not None:
+                                val = str(cs)
+                                if val: return val
+            except Exception as e:
+                print(f"[!] Android Chaquopy safe_paste exception for {act_cls}: {e}")
 
     try:
         val = pyperclip.paste()

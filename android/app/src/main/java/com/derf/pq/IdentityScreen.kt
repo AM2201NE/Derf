@@ -30,8 +30,8 @@ fun IdentityComposeScreen(onLock: () -> Unit) {
                 fpHex = derf.callAttr("b64", derf.callAttr("id_fp", bundle)).toString().take(24)
                 freshSecs = derf.get("FRESH").toString()
 
+                val keysList = derf.callAttr("contacts_list").asList()
                 val contactsObj = derf.callAttr("contacts_load")
-                val keysList = contactsObj.callAttr("keys").asList()
                 if (keysList.isNotEmpty()) {
                     val peer = keysList[0].toString()
                     val peerPub = contactsObj.callAttr("get", peer)

@@ -3,6 +3,8 @@ package com.derf.pq
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,23 +14,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaquo.python.Python
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatComposeScreen() {
     var activePeer by remember { mutableStateOf<String?>(null) }
-    var chatTranscript by remember { mutableStateOf("Welcome to Derf PQ Messenger.\n[Select a contact in Contacts tab to begin chatting]\n") }
+    var contactsList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var chatTranscript by remember { mutableStateOf("Welcome to Derf PQ Messenger.\n[Select or switch contacts above to message]\n") }
     var messageText by remember { mutableStateOf("") }
     var packetText by remember { mutableStateOf("") }
     var bannerStatus by remember { mutableStateOf("") }
 
-    // Load active peer on entry
+    // Load active contacts on entry
     LaunchedEffect(Unit) {
         try {
             val py = Python.getInstance()
             val derf = py.getModule("Derf")
-            val contactsObj = derf.callAttr("contacts_load")
-            val keysList = contactsObj.callAttr("keys").asList()
-            if (keysList.isNotEmpty()) {
-                activePeer = keysList[0].toString()
+            val keys = derf.callAttr("contacts_list").asList()
+            contactsList = keys.map { it.toString() }
+            if (contactsList.isNotEmpty() && activePeer == null) {
+                activePeer = contactsList[0]
             }
         } catch (e: Exception) {
             bannerStatus = "Error loading contacts: ${e.message}"
@@ -41,11 +45,71 @@ fun ChatComposeScreen() {
             .background(ObsidianBackground)
             .padding(16.dp)
     ) {
-        // Active Peer Header
+        // Active Peer Header & Selector Row
         Text(
-            text = if (activePeer != null) "Active Peer: $activePeer" else "Active Peer: [No Contact Selected]",
+            text = "SELECT RECIPIENT / PEER:",
+            color = MutedText,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        if (contactsList.isEmpty()) {
+            Surface(
+                color = CardSurface,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                Text(
+                    text = "No saved contacts found. Add contacts in Contacts tab.",
+                    color = ErrorRed,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        } else {
+            // Horizontal Chip List for Instant Peer Switching
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                items(contactsList) { peer ->
+                    val isSelected = peer == activePeer
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            activePeer = peer
+                            bannerStatus = "Switched active recipient to '$peer'"
+                        },
+                        label = {
+                            Text(
+                                text = if (isSelected) "🟢 $peer" else peer,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) ObsidianBackground else CrispWhite
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ElectricCyan,
+                            containerColor = CardSurface
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            borderColor = if (isSelected) ElectricCyan else BorderColor,
+                            selectedBorderColor = ElectricCyan
+                        )
+                    )
+                }
+            }
+        }
+
+        // Active Peer Status Indicator
+        Text(
+            text = if (activePeer != null) "Active Chat: $activePeer" else "Active Chat: [None Selected]",
             color = ActiveGreen,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
         )
@@ -181,7 +245,7 @@ fun ChatComposeScreen() {
                 onClick = {
                     if (messageText.isBlank()) return@Button
                     if (activePeer == null) {
-                        bannerStatus = "Error: Select a contact from Contacts tab first."
+                        bannerStatus = "Error: Select or add a contact first."
                         return@Button
                     }
                     try {
@@ -194,7 +258,7 @@ fun ChatComposeScreen() {
                             messageText = ""
                             bannerStatus = "DERF Ciphertext copied to clipboard!"
                         } else {
-                            bannerStatus = "Encryption Failed: Perform pairing first."
+                            bannerStatus = "Encryption Failed: Perform handshake pairing first."
                         }
                     } catch (e: Exception) {
                         bannerStatus = "Encryption Error: ${e.message}"

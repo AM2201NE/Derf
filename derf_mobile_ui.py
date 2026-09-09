@@ -236,7 +236,24 @@ class DerfMobileApp(toga.App):
     # =========================================================================
     # TAB 1: CHAT & DECRYPTION STAGE
     # =========================================================================
+    def on_switch_chat_peer(self, handle):
+        self.selected_peer = handle
+        self.banner_lbl.text = f"Switched active recipient to '{handle}'"
+        self.switch_view("chat")
+
     def render_chat_view(self):
+        sel_hdr = toga.Label("SELECT RECIPIENT / PEER:", style=Pack(margin_bottom=3, color=COLOR_MUTED, font_weight=BOLD))
+        self.content_container.add(sel_hdr)
+
+        if self.contacts:
+            picker_box = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
+            for handle in self.contacts.keys():
+                is_sel = (handle == self.selected_peer)
+                lbl_txt = f"🟢 {handle}" if is_sel else handle
+                btn = toga.Button(lbl_txt, on_press=lambda w, h=handle: self.on_switch_chat_peer(h), style=Pack(margin_right=5, height=38))
+                picker_box.add(btn)
+            self.content_container.add(picker_box)
+
         # Active Peer Banner
         peer_info = toga.Box(style=Pack(direction=ROW, margin_bottom=6))
         peer_text = f"Active Peer: {self.selected_peer}" if self.selected_peer else "Active Peer: [No Contact Selected - Add Contact in Contacts Tab]"
