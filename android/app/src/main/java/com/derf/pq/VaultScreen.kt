@@ -91,6 +91,7 @@ fun VaultUnlockScreen(
                         derf.callAttr("set_profile", profileName)
                         val key = derf.callAttr("derive_vault", password)
                         derf.put("VAULT", key)
+                        derf.callAttr("ensure_identity")
                         onUnlocked()
                     } catch (e: Exception) {
                         statusText = "Unlock Failed: ${e.message}"
@@ -117,6 +118,7 @@ fun VaultUnlockScreen(
                         derf.callAttr("set_profile", profileName)
                         val key = derf.callAttr("derive_vault", password)
                         derf.put("VAULT", key)
+                        derf.callAttr("ensure_identity")
                         onUnlocked()
                     } catch (e: Exception) {
                         statusText = "Creation Failed: ${e.message}"

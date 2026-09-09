@@ -490,6 +490,25 @@ def parse_pubkey(t):
         raise ValueError(f"Not a valid PUBLIC key (got {len(b)} bytes, expected {EK}). Copy the LCAP1- public key.")
     return b
 
+def ensure_identity():
+    global idn
+    id_path = P("lc_identity.json")
+    if os.path.exists(id_path):
+        try:
+            raw_idn = vload(id_path)
+            idn = norm_identity(raw_idn)
+            if idn is not None:
+                return idn
+        except Exception as e:
+            print(f"[!] Identity load error: {e}")
+
+    # Generate new post-quantum identity bundle
+    new_idn = make_identity()
+    vsave(id_path, {"pq_sk": b64(new_idn["pq_sk"]), "pq_pk": b64(new_idn["pq_pk"])})
+    idn = norm_identity(vload(id_path))
+    print("[+] Created and saved new ML-KEM-768 Identity!")
+    return idn
+
 def norm_identity(d):
     pk, sk = d.get("pq_pk"), d.get("pq_sk")
     if not pk or not sk: return None

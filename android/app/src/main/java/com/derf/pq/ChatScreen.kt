@@ -2,10 +2,12 @@ package com.derf.pq
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +24,7 @@ fun ChatComposeScreen() {
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var activePeer by remember { mutableStateOf<String?>(null) }
     var contactsList by remember { mutableStateOf<List<String>>(emptyList()) }
-    var chatTranscript by remember { mutableStateOf("Welcome to Derf PQ Messenger.\n[Select a recipient above to view context]\n") }
+    var chatTranscript by remember { mutableStateOf("Welcome to Derf PQ Messenger.\n[Select a recipient above to begin confidential communication]\n") }
     var messageText by remember { mutableStateOf("") }
     var packetText by remember { mutableStateOf("") }
     var bannerStatus by remember { mutableStateOf("") }
@@ -48,15 +50,36 @@ fun ChatComposeScreen() {
             .background(ObsidianBackground)
             .padding(16.dp)
     ) {
-        // Recipient Selection Header
-        Text(
-            text = "RECIPIENT",
-            color = MutedText,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
+        // Apple HIG Recipient Header Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "ACTIVE RECIPIENT",
+                color = MutedText,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+            if (activePeer != null) {
+                Surface(
+                    color = ActiveGreen.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "SECURE RATCHET READY",
+                        color = ActiveGreen,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
 
         if (contactsList.isEmpty()) {
             Surface(
@@ -68,16 +91,16 @@ fun ChatComposeScreen() {
                     .padding(bottom = 12.dp)
             ) {
                 Text(
-                    text = "No saved contacts found. Add contacts in Contacts tab.",
-                    color = ErrorRed,
+                    text = "No saved contacts. Add contacts in Contacts tab to start messaging.",
+                    color = MutedText,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(12.dp)
+                    modifier = Modifier.padding(14.dp)
                 )
             }
         } else {
-            // HIG Segmented Recipient Selector
+            // Apple HIG Segmented Contact Cards Horizontal Row
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
@@ -87,61 +110,51 @@ fun ChatComposeScreen() {
                     Surface(
                         onClick = {
                             activePeer = peer
-                            bannerStatus = "Active recipient: $peer"
+                            bannerStatus = "Switched active recipient to '$peer'"
                         },
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) ElectricCyan else CardSurface,
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) CardSurface else ObsidianBackground,
                         modifier = Modifier.border(
-                            1.dp,
-                            if (isSelected) ElectricCyan else BorderColor,
-                            RoundedCornerShape(20.dp)
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) ElectricCyan else BorderColor,
+                            shape = RoundedCornerShape(16.dp)
                         )
                     ) {
-                        Text(
-                            text = peer,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) ObsidianBackground else CrispWhite,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            // Avatar Circle with Contact Initial
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(
+                                        color = if (isSelected) ElectricCyan else InputSurface,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Text(
+                                    text = peer.take(1).uppercase(),
+                                    color = if (isSelected) ObsidianBackground else CrispWhite,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = peer,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) CrispWhite else MutedText
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Active Peer Status Indicator Card
-        Surface(
-            color = CardSurface,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
-                .padding(bottom = 12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "ACTIVE RECIPIENT",
-                    color = MutedText,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = activePeer ?: "[None Selected]",
-                    color = ActiveGreen,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // Chat Transcript Container (Apple Card Style)
+        // Chat Transcript Container (Apple Glass Card)
         Surface(
             color = CardSurface,
             shape = RoundedCornerShape(16.dp),
@@ -217,7 +230,7 @@ fun ChatComposeScreen() {
                         val derf = py.getModule("Derf")
                         val input = packetText.ifBlank { derf.callAttr("safe_paste").toString() }
                         if (input.contains("DERF:V1:")) {
-                            val decrypted = derf.callAttr("decrypt_alien_stack", input, derf.get("idn")).toString()
+                            val decrypted = derf.callAttr("decrypt_alien_stack", input, derf.callAttr("ensure_identity")).toString()
                             if (decrypted.isNotBlank() && decrypted != "None") {
                                 chatTranscript += "\n[Peer]: $decrypted\n"
                                 packetText = ""
@@ -282,7 +295,7 @@ fun ChatComposeScreen() {
                     try {
                         val py = Python.getInstance()
                         val derf = py.getModule("Derf")
-                        val cipherText = derf.callAttr("encrypt_alien_stack", messageText, activePeer, derf.get("idn")).toString()
+                        val cipherText = derf.callAttr("encrypt_alien_stack", messageText, activePeer, derf.callAttr("ensure_identity")).toString()
                         if (cipherText.isNotBlank() && cipherText != "None") {
                             clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(cipherText))
                             derf.callAttr("safe_copy", cipherText)

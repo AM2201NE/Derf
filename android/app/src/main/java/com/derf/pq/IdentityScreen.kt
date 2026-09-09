@@ -23,7 +23,7 @@ fun IdentityComposeScreen(onLock: () -> Unit) {
         try {
             val py = Python.getInstance()
             val derf = py.getModule("Derf")
-            val idn = derf.get("idn")
+            val idn = derf.callAttr("ensure_identity")
             if (idn != null) {
                 val bundle = derf.callAttr("id_bundle", idn)
                 pkB64 = derf.callAttr("b64", bundle).toString()
