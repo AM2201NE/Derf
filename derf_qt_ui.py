@@ -945,6 +945,17 @@ class DerfMainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Pairing Error", str(e))
 
+    def update_avatar_display(self):
+        try:
+            idn = Derf.ensure_identity()
+            payload = Derf.generate_hybrid_handshake_payload(idn)
+            avatar = Derf.generate_deterministic_avatar(payload)
+            if hasattr(self, 'lbl_av_badge'):
+                self.lbl_av_badge.setText(avatar["initials"])
+                self.lbl_av_code.setText(f"Verification Code: {avatar['verification_code']}")
+        except Exception:
+            pass
+
     def do_copy_my_pk(self):
         pk = self.txt_my_pk.toPlainText().strip()
         if pk:
@@ -957,6 +968,8 @@ class DerfMainWindow(QMainWindow):
         with open(Derf.P("lc_fresh.json"), "w") as f:
             json.dump({"fresh": val}, f)
         QMessageBox.information(self, "Saved", f"Freshness tolerance window set to {val} seconds.")
+
+
 
     def do_nuke_all_data(self):
         reply = QMessageBox.question(
@@ -1012,14 +1025,3 @@ def launch_pyqt_app(profile_name="default"):
 
 if __name__ == "__main__":
     sys.exit(launch_pyqt_app("default"))
-
-    def update_avatar_display(self):
-        try:
-            idn = Derf.ensure_identity()
-            payload = Derf.generate_hybrid_handshake_payload(idn)
-            avatar = Derf.generate_deterministic_avatar(payload)
-            if hasattr(self, 'lbl_av_badge'):
-                self.lbl_av_badge.setText(avatar["initials"])
-                self.lbl_av_code.setText(f"Verification Code: {avatar['verification_code']}")
-        except Exception:
-            pass
