@@ -638,13 +638,17 @@ class DerfMainWindow(QMainWindow):
 
     def do_generate_stego(self):
         try:
+            img_path, _ = QFileDialog.getOpenFileName(self, "Select Cover Image for Steganography", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+            if not img_path:
+                return
             idn = Derf.ensure_identity()
             payload = Derf.generate_hybrid_handshake_payload(idn)
-            stego = Derf.generate_stego_message(payload)
-            Derf.safe_copy(stego)
-            QMessageBox.information(self, "Stego Handshake", "Steganographic ZWC Handshake payload generated & copied to clipboard! Ready to inject into WhatsApp or Signal.")
+            time_locked = Derf.create_time_locked_payload(payload)
+            stego_path = Derf.inject_payload_into_image(img_path, time_locked)
+            Derf.safe_copy(stego_path)
+            QMessageBox.information(self, "Photo-Drop Generated", f"Ephemeral Photo-Drop payload embedded in selected image!\nSaved to temp: {stego_path}\nPath copied to clipboard (60s auto-wipe active).")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Stego Generation Error: {e}")
+            QMessageBox.critical(self, "Error", f"Photo-Drop Generation Error: {e}")
 
     def do_extract_stego(self):
         try:

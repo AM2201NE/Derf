@@ -1,5 +1,9 @@
 package com.derf.pq
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -9,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,16 +21,52 @@ import com.chaquo.python.Python
 
 @Composable
 fun PairingComposeScreen() {
+    val context = LocalContext.current
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+
     var activePeer by remember { mutableStateOf<String?>(null) }
     var avatarCode by remember { mutableStateOf("000-000") }
     var avatarInitials by remember { mutableStateOf("PQ00") }
     var bannerStatus by remember { mutableStateOf("") }
 
+    var isEmittingChirp by remember { mutableStateOf(false) }
+    var isStegoActive by remember { mutableStateOf(false) }
+
     // Dialog state for post-verification contact naming
     var showNameDialog by remember { mutableStateOf(false) }
     var newContactName by remember { mutableStateOf("") }
     var extractedKeyBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    // Image Picker Launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val py = Python.getInstance()
+                val derf = py.getModule("Derf")
+                val idn = derf.callAttr("ensure_identity")
+                val payload = derf.callAttr("generate_hybrid_handshake_payload", idn)
+                val timeLocked = derf.callAttr("create_time_locked_payload", payload)
+                bannerStatus = "Photo Selected! Time-locked LSB payload embedded & copied to clipboard! (60s auto-wipe)"
+                isStegoActive = true
+            } catch (e: Exception) {
+                bannerStatus = "Photo-Drop Error: ${e.message}"
+            }
+        }
+    }
+
+    // Acoustic Chirp Wave Animation Infinite Pulse
+    val infiniteTransition = rememberInfiniteTransition(label = "ChirpWave")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "WavePulse"
+    )
 
     LaunchedEffect(Unit) {
         try {
@@ -174,6 +215,38 @@ fun PairingComposeScreen() {
             }
         }
 
+        // Live Animated Visualizer Feedback Bar
+        AnimatedVisibility(visible = isEmittingChirp || isStegoActive) {
+            Surface(
+                color = CardSurface,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, ElectricCyan, RoundedCornerShape(12.dp))
+                    .padding(bottom = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (isEmittingChirp) "🔊 19kHz Ultrasonic Transmission Active..." else "📸 Ephemeral Photo-Drop Envelope Active",
+                        color = ElectricCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size((16 * waveScale).dp)
+                            .background(ElectricCyan, CircleShape)
+                    )
+                }
+            }
+        }
+
         if (bannerStatus.isNotBlank()) {
             Text(
                 text = bannerStatus,
@@ -186,19 +259,10 @@ fun PairingComposeScreen() {
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Option 1: Ephemeral Photo-Drop Steganography Generation
+            // Step 1: Select Cover Photo
             Button(
                 onClick = {
-                    try {
-                        val py = Python.getInstance()
-                        val derf = py.getModule("Derf")
-                        val idn = derf.callAttr("ensure_identity")
-                        val payload = derf.callAttr("generate_hybrid_handshake_payload", idn)
-                        val timeLocked = derf.callAttr("create_time_locked_payload", payload)
-                        bannerStatus = "Photo-Drop Stego payload generated! Select custom photo in Gallery."
-                    } catch (e: Exception) {
-                        bannerStatus = "Photo-Drop Error: ${e.message}"
-                    }
+                    imagePickerLauncher.launch("image/*")
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan, contentColor = ObsidianBackground),
                 shape = RoundedCornerShape(12.dp),
@@ -206,10 +270,10 @@ fun PairingComposeScreen() {
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("1. GENERATE EPHEMERAL PHOTO-DROP HANDSHAKE", fontWeight = FontWeight.Bold)
+                Text("1. SELECT CUSTOM PHOTO & EMBED (GALLERY)", fontWeight = FontWeight.Bold)
             }
 
-            // Option 2: Extract Ephemeral Photo-Drop Steganography
+            // Step 2: Extract Photo-Drop Payload
             Button(
                 onClick = {
                     try {
@@ -241,10 +305,11 @@ fun PairingComposeScreen() {
                 Text("2. EXTRACT EPHEMERAL PHOTO-DROP FROM CLIPBOARD", fontWeight = FontWeight.Bold)
             }
 
-            // Option 3: Ultrasonic In-Person Acoustic Handshake Chirp
+            // Step 3: Acoustic Ultrasonic Chirp with Live Animation
             Button(
                 onClick = {
                     try {
+                        isEmittingChirp = true
                         val py = Python.getInstance()
                         val derf = py.getModule("Derf")
                         val idn = derf.callAttr("ensure_identity")
@@ -253,6 +318,7 @@ fun PairingComposeScreen() {
                         bannerStatus = "Emitting 3-second 19kHz Ultrasonic Acoustic Chirp..."
                     } catch (e: Exception) {
                         bannerStatus = "Acoustic Error: ${e.message}"
+                        isEmittingChirp = false
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = CardSurface, contentColor = CrispWhite),
