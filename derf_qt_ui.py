@@ -13,7 +13,7 @@ try:
     from PyQt6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
         QLineEdit, QPushButton, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget,
-        QFrame, QDialog, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, QScrollArea,
+        QFrame, QDialog, QMessageBox, QFileDialog, QInputDialog, QGraphicsDropShadowEffect, QSpinBox, QScrollArea,
         QSplitter, QToolButton
     )
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QSize
