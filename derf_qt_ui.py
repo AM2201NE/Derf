@@ -653,11 +653,21 @@ class DerfMainWindow(QMainWindow):
                 QMessageBox.warning(self, "Clipboard Empty", "Copy the steganographic handshake message to clipboard first.")
                 return
             payload = Derf.extract_stego_payload(stego)
+            if not payload:
+                QMessageBox.warning(self, "Extraction Failed", "Failed to extract key payload. The message window may have expired.")
+                return
             avatar = Derf.generate_deterministic_avatar(payload)
             code = avatar["verification_code"]
             self.lbl_av_badge.setText(avatar["initials"])
             self.lbl_av_code.setText(f"Verification Code: {code}")
-            QMessageBox.information(self, "Extracted", f"Extracted 1216-byte Hybrid Key! Peer Verification Code: {code}")
+
+            name, ok = QInputDialog.getText(self, "Save Verified Contact", f"Extracted 1216-byte Hybrid Key!\nPeer Verification Code: {code}\n\nEnter contact handle:")
+            if ok and name.strip():
+                handle = name.strip()
+                Derf.contact_add(handle, payload[:1184])
+                self.selected_peer = handle
+                self.refresh_contacts()
+                QMessageBox.information(self, "Saved", f"Saved verified contact '{handle}'!")
         except Exception as e:
             QMessageBox.critical(self, "Extraction Error", f"Failed to extract stego payload: {e}")
 

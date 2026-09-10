@@ -22,6 +22,11 @@ fun PairingComposeScreen() {
     var avatarInitials by remember { mutableStateOf("PQ00") }
     var bannerStatus by remember { mutableStateOf("") }
 
+    // Dialog state for post-verification contact naming
+    var showNameDialog by remember { mutableStateOf(false) }
+    var newContactName by remember { mutableStateOf("") }
+    var extractedKeyBytes by remember { mutableStateOf<ByteArray?>(null) }
+
     LaunchedEffect(Unit) {
         try {
             val py = Python.getInstance()
@@ -39,6 +44,73 @@ fun PairingComposeScreen() {
         } catch (e: Exception) {
             bannerStatus = "Error: ${e.message}"
         }
+    }
+
+    if (showNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showNameDialog = false },
+            title = {
+                Text(
+                    text = "SAVE VERIFIED CONTACT",
+                    color = ElectricCyan,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Verified Avatar Code: $avatarCode",
+                        color = ActiveGreen,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    OutlinedTextField(
+                        value = newContactName,
+                        onValueChange = { newContactName = it },
+                        placeholder = { Text("Enter contact name (e.g. Alice)...", color = MutedText) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = InputSurface,
+                            unfocusedContainerColor = InputSurface,
+                            focusedBorderColor = ElectricCyan,
+                            unfocusedBorderColor = BorderColor,
+                            focusedTextColor = CrispWhite,
+                            unfocusedTextColor = CrispWhite
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val name = newContactName.trim()
+                        if (name.isNotBlank() && extractedKeyBytes != null) {
+                            try {
+                                val py = Python.getInstance()
+                                val derf = py.getModule("Derf")
+                                derf.callAttr("contact_add", name, extractedKeyBytes)
+                                activePeer = name
+                                bannerStatus = "Contact '$name' saved & verified!"
+                                showNameDialog = false
+                            } catch (e: Exception) {
+                                bannerStatus = "Save Error: ${e.message}"
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan, contentColor = ObsidianBackground)
+                ) {
+                    Text("SAVE CONTACT", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNameDialog = false }) {
+                    Text("CANCEL", color = MutedText)
+                }
+            },
+            containerColor = CardSurface
+        )
     }
 
     Column(
@@ -147,9 +219,18 @@ fun PairingComposeScreen() {
                         val derf = py.getModule("Derf")
                         val stegoMsg = derf.callAttr("safe_paste").toString()
                         val recoveredPayload = derf.callAttr("extract_stego_payload", stegoMsg)
-                        val avatarObj = derf.callAttr("generate_deterministic_avatar", recoveredPayload)
-                        val code = avatarObj.callAttr("get", "verification_code")?.toString() ?: "000-000"
-                        bannerStatus = "Extracted 1216-byte Hybrid Key! Peer Verification Code: $code"
+                        if (recoveredPayload != null) {
+                            val keyPyBytes = recoveredPayload.toPyObject()
+                            extractedKeyBytes = keyPyBytes.toJava(ByteArray::class.java)
+                            val avatarObj = derf.callAttr("generate_deterministic_avatar", recoveredPayload)
+                            avatarCode = avatarObj.callAttr("get", "verification_code")?.toString() ?: "000-000"
+                            avatarInitials = avatarObj.callAttr("get", "initials")?.toString() ?: "PQ00"
+                            newContactName = "Peer_${avatarCode.take(3)}"
+                            showNameDialog = true
+                            bannerStatus = "Extracted 1216-byte Key! Please confirm contact name."
+                        } else {
+                            bannerStatus = "Extraction Failed: Expired time-window or invalid stego payload."
+                        }
                     } catch (e: Exception) {
                         bannerStatus = "Extract Error: ${e.message}"
                     }

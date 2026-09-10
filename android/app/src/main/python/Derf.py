@@ -1376,3 +1376,95 @@ if __name__ == "__main__":
             print(f"[!] PyQt UI launch exception: {e}, falling back to mobile UI...")
             import derf_mobile_ui
             derf_mobile_ui.launch_mobile_app("default")
+
+
+# =========================================================================
+# DERF EPHEMERAL PHOTO-DROP PROTOCOL (TIME-LOCKED ENVELOPE & LSB STEGO)
+# =========================================================================
+import time
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+from PIL import Image
+import io
+
+TIME_WINDOW_SECONDS = 300
+
+def get_current_time_window() -> int:
+    return int(time.time() // TIME_WINDOW_SECONDS)
+
+def derive_time_key(time_window: int, salt: bytes) -> bytes:
+    seed = f"DERF-EPOCH-{time_window}".encode('utf-8') + salt
+    return hashlib.sha3_256(seed).digest()
+
+def create_time_locked_payload(public_key_bytes: bytes) -> bytes:
+    current_window = get_current_time_window()
+    salt = os.urandom(16)
+    time_key = derive_time_key(current_window, salt)
+    aead = ChaCha20Poly1305(time_key)
+    nonce = hashlib.sha3_256(f"NONCE-{current_window}".encode('utf-8') + salt).digest()[:12]
+    ciphertext = aead.encrypt(nonce, public_key_bytes, associated_data=None)
+    payload = b'' + current_window.to_bytes(8, 'big') + salt + nonce + ciphertext
+    return payload
+
+def decrypt_time_locked_payload(payload: bytes) -> bytes:
+    if not payload or payload[0:1] != b'' or len(payload) < 38:
+        return None
+    time_window = int.from_bytes(payload[1:9], 'big')
+    salt = payload[9:25]
+    nonce = payload[25:37]
+    ciphertext = payload[37:]
+    current_window = get_current_time_window()
+
+    if abs(current_window - time_window) > 1:
+        return None  # EXPIRED
+
+    time_key = derive_time_key(time_window, salt)
+    aead = ChaCha20Poly1305(time_key)
+    try:
+        return aead.decrypt(nonce, ciphertext, associated_data=None)
+    except Exception:
+        return None
+
+def inject_payload_into_image(image_path: str, payload: bytes) -> str:
+    img = Image.open(image_path).convert('RGB')
+    pixels = img.load()
+    bits = ''.join(f'{byte:08b}' for byte in payload)
+    max_bits = img.width * img.height * 3
+    if len(bits) > max_bits:
+        raise ValueError("Image resolution too low for payload.")
+
+    bit_idx = 0
+    for y in range(img.height):
+        for x in range(img.width):
+            if bit_idx >= len(bits):
+                break
+            r, g, b = pixels[x, y]
+            r = (r & ~1) | int(bits[bit_idx]); bit_idx += 1
+            if bit_idx < len(bits):
+                g = (g & ~1) | int(bits[bit_idx]); bit_idx += 1
+            if bit_idx < len(bits):
+                b = (b & ~1) | int(bits[bit_idx]); bit_idx += 1
+            pixels[x, y] = (r, g, b)
+
+    temp_dir = P("secure_temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    out_path = os.path.join(temp_dir, f"derf_{os.urandom(8).hex()}.png")
+    img.save(out_path)
+    return out_path
+
+def extract_payload_from_image(image_path: str) -> bytes:
+    img = Image.open(image_path).convert('RGB')
+    pixels = img.load()
+    bits = []
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b = pixels[x, y]
+            bits.append(str(r & 1))
+            bits.append(str(g & 1))
+            bits.append(str(b & 1))
+    bit_string = ''.join(bits)
+    raw_bytes = bytearray()
+    for i in range(0, min(len(bit_string), 5000 * 8), 8):
+        raw_bytes.append(int(bit_string[i:i+8], 2))
+    if raw_bytes[0:1] == b'':
+        return bytes(raw_bytes)
+    return None

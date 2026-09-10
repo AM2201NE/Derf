@@ -73,6 +73,10 @@ class MainActivity : ComponentActivity() {
             permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        }
+
         if (permissionsToRequest.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), 101)
         }
