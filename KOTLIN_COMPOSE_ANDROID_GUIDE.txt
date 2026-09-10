@@ -55,6 +55,8 @@ STEP 4: INSTALL & RUN DIRECTLY ON YOUR CONNECTED PHONE FROM VS CODE
     .\gradlew.bat installDebug
     adb shell am start -n com.derf.pq/.MainActivity
 
+--edit 192.168.1.2:40013 in the code below with your thing
+adb -s 192.168.1.2:40013 shell am start -n com.derf.pq/.MainActivity
 --------------------------------------------------------------------------------
 STEP 5: REAL-TIME LOGCAT LOGGING & DEBUGGING IN VS CODE
 --------------------------------------------------------------------------------
