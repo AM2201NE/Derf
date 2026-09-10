@@ -25,6 +25,8 @@ android {
                 install "cryptography>=41.0.0"
                 install "kyber-py>=0.1.0"
                 install "zstandard>=0.22.0"
+                install "Pillow>=10.0.0"
+                install "numpy>=1.24.0"
             }
         }
     }
