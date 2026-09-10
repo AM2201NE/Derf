@@ -620,11 +620,11 @@ class DerfMainWindow(QMainWindow):
         c_layout.setContentsMargins(20, 20, 20, 20)
         c_layout.setSpacing(12)
 
-        btn_stego_gen = QPushButton("1. GENERATE STEGANOGRAPHIC ZWC HANDSHAKE")
+        btn_stego_gen = QPushButton("1. GENERATE EPHEMERAL PHOTO-DROP HANDSHAKE")
         btn_stego_gen.clicked.connect(self.do_generate_stego)
         c_layout.addWidget(btn_stego_gen)
 
-        btn_stego_ext = QPushButton("2. EXTRACT STEGANOGRAPHIC ZWC HANDSHAKE")
+        btn_stego_ext = QPushButton("2. EXTRACT EPHEMERAL PHOTO-DROP HANDSHAKE")
         btn_stego_ext.clicked.connect(self.do_extract_stego)
         c_layout.addWidget(btn_stego_ext)
 

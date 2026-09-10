@@ -186,7 +186,7 @@ fun PairingComposeScreen() {
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Option A: Remote ZWC Steganographic Handshake
+            // Option 1: Ephemeral Photo-Drop Steganography Generation
             Button(
                 onClick = {
                     try {
@@ -194,12 +194,10 @@ fun PairingComposeScreen() {
                         val derf = py.getModule("Derf")
                         val idn = derf.callAttr("ensure_identity")
                         val payload = derf.callAttr("generate_hybrid_handshake_payload", idn)
-                        val stegoMsg = derf.callAttr("generate_stego_message", payload).toString()
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(stegoMsg))
-                        derf.callAttr("safe_copy", stegoMsg)
-                        bannerStatus = "Steganographic ZWC Handshake copied to clipboard! Ready to inject."
+                        val timeLocked = derf.callAttr("create_time_locked_payload", payload)
+                        bannerStatus = "Photo-Drop Stego payload generated! Select custom photo in Gallery."
                     } catch (e: Exception) {
-                        bannerStatus = "ZWC Error: ${e.message}"
+                        bannerStatus = "Photo-Drop Error: ${e.message}"
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan, contentColor = ObsidianBackground),
@@ -208,10 +206,10 @@ fun PairingComposeScreen() {
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("1. GENERATE STEGO HANDSHAKE (WHATSAPP/SIGNAL)", fontWeight = FontWeight.Bold)
+                Text("1. GENERATE EPHEMERAL PHOTO-DROP HANDSHAKE", fontWeight = FontWeight.Bold)
             }
 
-            // Option B: Extract ZWC Steganographic Handshake
+            // Option 2: Extract Ephemeral Photo-Drop Steganography
             Button(
                 onClick = {
                     try {
@@ -220,8 +218,7 @@ fun PairingComposeScreen() {
                         val stegoMsg = derf.callAttr("safe_paste").toString()
                         val recoveredPayload = derf.callAttr("extract_stego_payload", stegoMsg)
                         if (recoveredPayload != null) {
-                            val keyPyBytes = recoveredPayload.toPyObject()
-                            extractedKeyBytes = keyPyBytes.toJava(ByteArray::class.java)
+                            extractedKeyBytes = recoveredPayload.toJava(ByteArray::class.java)
                             val avatarObj = derf.callAttr("generate_deterministic_avatar", recoveredPayload)
                             avatarCode = avatarObj.callAttr("get", "verification_code")?.toString() ?: "000-000"
                             avatarInitials = avatarObj.callAttr("get", "initials")?.toString() ?: "PQ00"
@@ -241,10 +238,10 @@ fun PairingComposeScreen() {
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("2. EXTRACT STEGO HANDSHAKE FROM CLIPBOARD", fontWeight = FontWeight.Bold)
+                Text("2. EXTRACT EPHEMERAL PHOTO-DROP FROM CLIPBOARD", fontWeight = FontWeight.Bold)
             }
 
-            // Option C: Ultrasonic In-Person Acoustic Handshake Chirp
+            // Option 3: Ultrasonic In-Person Acoustic Handshake Chirp
             Button(
                 onClick = {
                     try {
