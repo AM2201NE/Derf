@@ -1,0 +1,72 @@
+================================================================================
+DERF PQ MESSENGER — 100% VS CODE & COMMAND-LINE BUILD GUIDE (NO ANDROID STUDIO)
+Native Kotlin + Jetpack Compose + Chaquopy
+================================================================================
+
+You can build, package, deploy, and debug the native Kotlin + Jetpack Compose Android app
+100% inside VS Code (Terminal / PowerShell) without ever opening Android Studio!
+
+--------------------------------------------------------------------------------
+STEP 1: ANDROID SDK LOCATION (local.properties)
+--------------------------------------------------------------------------------
+Ensure `android/local.properties` contains your local Android SDK location:
+
+    sdk.dir=C\:\\Users\\GG\\AppData\\Local\\Android\\Sdk
+
+(Or set the environment variable in PowerShell: `$env:ANDROID_HOME="C:\Users\GG\AppData\Local\Android\Sdk"`).
+
+--------------------------------------------------------------------------------
+STEP 2: VS CODE EXTENSIONS FOR KOTLIN & GRADLE
+--------------------------------------------------------------------------------
+Inside VS Code, install these free extensions from the Marketplace:
+1. Kotlin (by mathiasfrohlich / JetBrains)
+2. Gradle for Java (by Microsoft)
+3. Android (by vscandroid) or Android iOS Emulator (by Mobile Apps)
+
+--------------------------------------------------------------------------------
+STEP 3: BUILD THE .APK DIRECTLY IN VS CODE TERMINAL
+--------------------------------------------------------------------------------
+Open a Terminal in VS Code (`Ctrl + ~`) and navigate to the `android/` directory:
+
+    cd android
+
+Run Gradle to compile the APK directly:
+
+On Windows PowerShell / CMD:
+    .\gradlew.bat assembleDebug
+
+On Linux / macOS:
+    ./gradlew assembleDebug
+
+Gradle will compile the Kotlin + Compose code, download Chaquopy Python packages,
+and generate the installable APK at:
+    `android/app/build/outputs/apk/debug/app-debug.apk`
+
+--------------------------------------------------------------------------------
+STEP 4: INSTALL & RUN DIRECTLY ON YOUR CONNECTED PHONE FROM VS CODE
+--------------------------------------------------------------------------------
+1. Connect your Android phone via USB (with USB Debugging enabled).
+2. Verify connected device in VS Code terminal:
+
+    adb devices
+
+3. Build, install, and automatically launch the app on your phone in one command:
+
+    .\gradlew.bat installDebug
+    adb shell am start -n com.derf.pq/.MainActivity
+
+--edit 192.168.1.2:40013 in the code below with your thing
+adb -s 192.168.1.2:40013 shell am start -n com.derf.pq/.MainActivity
+--------------------------------------------------------------------------------
+STEP 5: REAL-TIME LOGCAT LOGGING & DEBUGGING IN VS CODE
+--------------------------------------------------------------------------------
+To view live Kotlin, Python, and Chaquopy log output directly in your VS Code terminal:
+
+    adb logcat *:S System.out:V stdio:V Python:V AndroidRuntime:E
+
+================================================================================
+SUMMARY OF VS CODE COMMANDS:
+• Build APK:            `cd android; .\gradlew.bat assembleDebug`
+• Install & Launch:     `.\gradlew.bat installDebug; adb shell am start -n com.derf.pq/.MainActivity`
+• Live Log Stream:      `adb logcat *:S System.out:V stdio:V Python:V AndroidRuntime:E`
+================================================================================
