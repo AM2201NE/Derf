@@ -4,7 +4,10 @@ Cross-platform Kivy GUI + Integrated Background Service + CLI selftest.
 Data stored in 'Derf' folder on Desktop (auto-created + migrated).
 """
 import os, sys, json, zstandard as zstd, zlib, glob, hmac, hashlib, time, struct, base64, binascii, socket, shutil, threading, re
-import pyperclip
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
 
 # --- CLI Arguments pre-check ---
 FRESH = 420.0
@@ -997,8 +1000,9 @@ def safe_copy(text):
         plyer.clipboard.copy(text)
     except Exception: pass
 
-    try: pyperclip.copy(text)
-    except Exception: pass
+    if pyperclip is not None:
+        try: pyperclip.copy(text)
+        except Exception: pass
 
 def safe_paste():
     global _CLIPBOARD_TEXT
@@ -1024,10 +1028,11 @@ def safe_paste():
             except Exception as e:
                 print(f"[!] Android Chaquopy safe_paste exception for {act_cls}: {e}")
 
-    try:
-        val = pyperclip.paste()
-        if val: return val
-    except Exception: pass
+    if pyperclip is not None:
+        try:
+            val = pyperclip.paste()
+            if val: return val
+        except Exception: pass
 
     try:
         import plyer
